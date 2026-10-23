@@ -1,0 +1,26 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Description
+1,Gold,Welcome Chest,3,0,200,0,Welcome to Act II! 200 Gold to start your journey.
+2,Sign,Cursed Scroll,2,1,0,0,move_to(0 5) and move_to(15 10) -- CURSED SPELLS! Silence them with #
+3,Gold,Seer Reward,3,2,150,0,The Seer rewards your silence: 150 Gold
+4,Guard,Comment Gate,4,3,0,0,Show me you can silence curses! Type lines starting with # then move here.
+5,Sign,Tavern Wall,8,1,0,0,The password is: For Erathia!
+6,Guard,Password Gate,11,1,0,0,SHOUT the password with say() to open this gate!
+7,Gold,Tavern Reward,11,2,300,0,The Tavern keeper thanks you: 300 Gold
+8,Sign,Scout Hint,8,2,0,0,The Merchant wanders! Use x y = scout(Merchant) to find him.
+9,NPC,Wandering Merchant,10,2,500,0,A travelling merchant with 500 gold in rare goods!
+10,Guard,Variable Gate,14,3,0,0,Store the merchants location in a variable to pass!
+11,Sign,Sphinx Riddle 1,14,4,0,0,Give me a number with a DECIMAL POINT in it.
+12,Sign,Sphinx Riddle 2,14,5,0,0,Give me a piece of TEXT -- a word in quotes.
+13,Sign,Sphinx Riddle 3,13,5,0,0,Give me something TRUE or FALSE.
+14,Sphinx,The Stone Sphinx,14,4,0,0,Answer my 3 riddles with the correct TYPES to pass!
+15,Sign,Price Board,13,6,0,0,PIKEMAN costs 60 gold. ARCHER costs 100 gold.
+16,Dwelling,Barracks,14,6,0,0,Recruit soldiers here! Use recruit(Pikeman and a count)
+17,Guard,Operators Gate,3,6,0,0,How many Pikemen can you buy with your gold? Use // to find out!
+18,Sign,Trade Hint,5,7,0,0,Math time! gold // 60 = how many. gold % 60 = leftover change.
+19,Gold,Marketplace Prize,4,7,400,0,You earned 400 Gold for mastering the marketplace math!
+20,Sign,Ancient Sign 1,8,8,0,0,1500
+21,Sign,Ancient Sign 2,10,8,0,0,2.5
+22,Guard,Casting Gate,12,8,0,0,The toll is written on the ancient signs -- but as TEXT! Use int() to convert.
+23,Sign,Keymaster Scroll,13,7,0,0,NOGARD
+24,Guard,String Gate,12,6,0,0,Reverse the scrolls word to find the true name! Use open_gate()
+25,Boss,Tax Collector,7,10,0,50,The Tax Collector demands proof of ALL your Python skills!

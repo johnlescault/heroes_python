@@ -29,14 +29,6 @@ def plan_turn(gold, wood):
     #    move_to(x, y)    --> Example: move_to(4, 1) walks to tile (4, 1)
     # ------------------------------------------------------------------------
 
-    #move_right(1)
-    #move_down(1)
-    #move_by(2,4)
-    #move_by(-2,0)
-    move_to(6,1)
-    move_by(0,2)
-    move_right(1)
-
     # ------------------------------------------------------------------------
     # 📜 QUEST 2: THE ARCHMAGE'S LOOP SPELL (Region 2 & 3)
     # Build a Magic Bridge ('B') across Water (X=10) or Lava (Y=6):

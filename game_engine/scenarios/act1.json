@@ -1,0 +1,13 @@
+{
+  "id": "act1",
+  "title": "The Starting Valley",
+  "subtitle": "Learn to command your hero",
+  "map_file": "world_map.csv",
+  "objects_file": "map_objects.csv",
+  "hero_start": [1, 0],
+  "max_mp": 12.0,
+  "starting_gold": 0,
+  "starting_wood": 0,
+  "starting_dragons": 0,
+  "next_scenario": "act2"
+}

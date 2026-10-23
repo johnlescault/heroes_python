@@ -1,0 +1,13 @@
+{
+  "id": "act2",
+  "title": "The Hero's Journal",
+  "subtitle": "Learn the deeper arts of Python",
+  "map_file": "game_engine/scenarios/act2_map.csv",
+  "objects_file": "game_engine/scenarios/act2_objects.csv",
+  "hero_start": [1, 0],
+  "max_mp": 14.0,
+  "starting_gold": 0,
+  "starting_wood": 0,
+  "starting_dragons": 0,
+  "next_scenario": "act3"
+}

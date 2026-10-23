@@ -73,7 +73,7 @@ class TerrainRenderer:
         self.ys = np.arange(s, dtype=np.float32)[None, :] * np.ones((s, 1), dtype=np.float32)
 
         self.tex = {}
-        for code in "GMFWL":
+        for code in "GMFWLS":
             seamless = make_seamless(_to_arr(textures[code]))
             if code in "MF":
                 # Rocks are lit from above and trees grow upright: mirror left/right only,
@@ -147,6 +147,10 @@ class TerrainRenderer:
             return _to_surf(self._liquid(code, c, r, nbs, v))
         if code in ("M", "F"):
             return _to_surf(self._outcrop(code, c, r, nbs, v))
+        if code == "S":
+            arr = self.tex["S"][v].copy()
+            arr = self._banks(arr, c, r, nbs)
+            return _to_surf(arr)
         arr = self.tex["G"][v].copy()
         arr = self._banks(arr, c, r, nbs)
         return _to_surf(arr)

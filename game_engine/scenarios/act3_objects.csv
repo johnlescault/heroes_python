@@ -1,0 +1,24 @@
+ID,Type,Name,X,Y,Value,Collected,Description
+1,Sign,Weather Sign,1,5,0,0,Check the weather with today() before crossing!
+2,Gold,Desert Coins,2,2,300,0,Gold coins half-buried in sand
+3,Gold,Oasis Treasure,3,1,400,0,Gold revealed on oasis days
+4,NPC,Desert Trader,4,3,200,0,Trades secrets for safe passage
+5,Guard,Weather Gate,5,3,0,0,Pass only if you used if/else with today()
+6,Sign,Scout Sign,7,3,0,0,Use look(x y) to check tiles before moving!
+7,Gold,Hidden Stash,8,2,500,0,Gold hidden in the dunes
+8,NPC,Wandering Monster,9,3,0,0,A scorpion that moves each day!
+9,Guard,Scout Gate,11,3,0,0,Pass only if you used look() with if
+10,Sign,Shrine Scroll,7,7,0,0,Set levers to make the rule TRUE!
+11,NPC,Shrine Keeper,8,7,300,0,Rewards you for solving the shrine
+12,Shrine,Logic Shrine,9,7,0,0,red and blue
+13,Shrine,Hard Shrine,10,7,0,0,red and (blue or not green)
+14,Guard,Shrine Gate,11,7,0,0,Solve a shrine to pass!
+15,Sign,Gate Scroll,12,4,0,0,Use and/or/not in an if statement!
+16,Gold,Gate Gold,13,3,600,0,Gold beyond the compound gate
+17,NPC,Key Merchant,12,3,0,0,Sells the blue key for passage
+18,Guard,Compound Gate,14,4,0,0,Use and/or/not in an if to pass!
+19,Sign,Arena Sign,14,5,0,0,Battle the Troglodytes! Write if/else strategy
+20,Gold,Arena Prize,14,6,800,0,Gold reward for winning the arena battle
+21,NPC,Arena Master,15,5,0,0,Welcome to the Arena! Fight to proceed
+22,Guard,Arena Gate,14,7,0,0,Win the battle tutorial to pass!
+23,Boss,Sand Wyrm,15,8,0,0,The terrible Sand Wyrm! Master of decisions!

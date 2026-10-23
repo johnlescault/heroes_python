@@ -3,6 +3,7 @@ import sys
 import csv
 import json
 import math
+import re
 import ctypes
 import importlib
 from typing import Any
@@ -35,6 +36,8 @@ if sys.platform == "win32":
 # Auto-generate hero_api.py in the PROJECT directory (next to my_hero.py)
 HERO_API_CODE = '''# Auto-generated helper module for Heroes of Python
 _actions = []
+_scout_results = {}   # Filled by engine before exec
+_sign_results = {}    # Filled by engine before exec
 
 def _reset():
     _actions.clear()
@@ -66,6 +69,68 @@ def move_to(x, y):
 def terraform(x, y, tile_type="B"):
     """Alter the map grid at absolute coordinate (x, y)."""
     _actions.append(("terraform", int(x), int(y), str(tile_type).upper()))
+
+def say(text):
+    """Shout a message! Shows as a speech bubble over the hero."""
+    _actions.append(("say", str(text)))
+
+def scout(name):
+    """Find where an NPC is on the map. Returns (x, y) coordinates."""
+    key = str(name).lower()
+    for k, v in _scout_results.items():
+        if key in k.lower():
+            return v
+    return None
+
+def read_sign(x, y):
+    """Read the text on a sign at position (x, y). Returns a string."""
+    return _sign_results.get((int(x), int(y)), "")
+
+def answer_sphinx(value):
+    """Answer the Sphinx\'s riddle with a value of the correct type."""
+    _actions.append(("answer_sphinx", value))
+
+def recruit(unit_name, count):
+    """Recruit soldiers from a Barracks or Dwelling."""
+    _actions.append(("recruit", str(unit_name), int(count)))
+
+def open_gate(password):
+    """Try to open a locked gate with a password."""
+    _actions.append(("open_gate", str(password)))
+
+# ── Act III: The Shifting Sands ──
+_today_result = "clear"       # Set by engine before exec
+_look_results = {}            # Set by engine before exec
+_keys_held = set()            # Set by engine before exec
+
+def today():
+    """What's the weather today? Returns 'sandstorm', 'clear', or 'oasis'."""
+    return _today_result
+
+def look(x, y):
+    """Look at a tile. Returns tile type or object type if one is there."""
+    return _look_results.get((int(x), int(y)), "?")
+
+def has_key(color):
+    """Do you have a key of this color?"""
+    return str(color).lower() in _keys_held
+
+def set_lever(name, value):
+    """Set a lever to True or False for the Logic Shrine."""
+    _actions.append(("set_lever", str(name).lower(), bool(value)))
+
+# Battle tutorial functions (only work during battle)
+def attack(target=None):
+    """Attack an adjacent enemy."""
+    _actions.append(("battle_attack",))
+
+def move_toward(target=None):
+    """Move toward the closest enemy."""
+    _actions.append(("battle_move_toward",))
+
+def defend():
+    """Defend this round (+30%% defense)."""
+    _actions.append(("battle_defend",))
 '''
 
 hero_api_path = os.path.join(PROJECT_DIR, "hero_api.py")
@@ -82,15 +147,16 @@ TILE_SIZE = 84
 MAP_COLS = 16
 MAP_ROWS = 11
 SIDEBAR_WIDTH = 576
-BOTTOM_BAR_HEIGHT = 156
+BOTTOM_BAR_HEIGHT = 280
 
 VIRTUAL_W = MAP_COLS * TILE_SIZE + SIDEBAR_WIDTH   # 1920 px
-VIRTUAL_H = MAP_ROWS * TILE_SIZE + BOTTOM_BAR_HEIGHT  # 1080 px
+VIRTUAL_H = MAP_ROWS * TILE_SIZE + BOTTOM_BAR_HEIGHT  # 1204 px
 
 TERRAIN_COSTS = {
     "R": 0.5,  # Dirt Road
     "G": 1.0,  # Grass
     "B": 1.0,  # Bridge
+    "S": 1.5,  # Sand (slow)
     "M": None, # Mountain (Blocked)
     "W": None, # Water (Blocked)
     "L": None, # Lava (Blocked)
@@ -101,6 +167,7 @@ TERRAIN_NAMES = {
     "R": "Cobble Road (0.5 MP)",
     "G": "Emerald Grass (1.0 MP)",
     "B": "Enchanted Bridge (1.0 MP)",
+    "S": "Desert Sand (1.5 MP)",
     "M": "Jagged Peak (Blocked)",
     "W": "Deep River (Blocked)",
     "L": "Molten Lava (Blocked)",
@@ -249,6 +316,22 @@ class HDArtRenderer:
             pygame.draw.rect(bridge, (215, 168, 72), (4, s-14, s-8, 6), border_radius=3)
         self.tiles["B"] = bridge
 
+        # 8. DESERT SAND
+        sand = pygame.Surface((s, s))
+        sand.fill((210, 185, 130))
+        if "sand" in self.sprites:
+            sand.blit(self._get_scaled_sprite("sand", (s, s)), (0, 0))
+        else:
+            for y in range(0, s, 4):
+                for x in range(0, s, 4):
+                    h = (x * 23 + y * 41) % 19
+                    col = (200 + h, 178 + h, 120 + h // 2)
+                    pygame.draw.rect(sand, col, (x, y, 4, 4))
+            # Dune ripples
+            for wy in range(8, s - 4, 16):
+                pygame.draw.arc(sand, (225, 205, 155), (2, wy, s - 4, 10), 0, math.pi, 2)
+        self.tiles["S"] = sand
+
     def draw_object(self, screen, obj, px, py, tick):
         s = TILE_SIZE
         cx, cy = px + s // 2, py + s // 2
@@ -380,17 +463,28 @@ class HeroesGameEngine:
         self.font_md = pygame.font.SysFont(ui_font, 22, bold=True)
         self.font_lg = pygame.font.SysFont(ui_font, 25, bold=True)
         self.font_title = pygame.font.SysFont(ui_font, 32, bold=True)
+        self.font_console = pygame.font.SysFont(mono_font, 20, bold=False)
+        self.font_console_bold = pygame.font.SysFont(mono_font, 20, bold=True)
 
         self.show_grid = True
         self.last_mtime = 0
         self.tick = 0
         self.floating_texts = []
+        self.current_act = "act1"
+        self.scenario = None
+        self.load_scenario("act1")
         self.reset_game()
+        # Welcome message for the Spell Console
+        self.console_add_output("✦ Welcome to the Spell Console!", (250, 215, 75))
+        self.console_add_output("  Type a spell and press Enter:", (180, 200, 220))
+        self.console_add_output("  move_right(3)   move_to(4, 1)", (165, 250, 175))
+        self.console_add_output("  Type 'help' for all commands", (140, 180, 200))
+        self.console_add_output("  Ctrl+Enter = commit your turn", (140, 180, 200))
         # Restore saved game if available
         if self.load_game():
             self.status_msg = f"Game Loaded! Day {self.day}, Hero at ({self.hero_x}, {self.hero_y})."
             self.status_color = (120, 240, 150)
-            self.run_preview()
+            self.console_add_output(f"═══ Day {self.day} ═══ Hero at ({self.hero_x}, {self.hero_y})", (250, 215, 75))
 
     def window_to_virtual(self, pos):
         """Convert a window-space mouse position to virtual canvas coordinates."""
@@ -408,6 +502,7 @@ class HeroesGameEngine:
         """Save current progress to savegame.json."""
         try:
             data = {
+                "current_act": self.current_act,
                 "hero_x": self.hero_x,
                 "hero_y": self.hero_y,
                 "gold": self.gold,
@@ -418,6 +513,13 @@ class HeroesGameEngine:
                 "victory": self.victory,
                 "grid": self.grid,
                 "collected_ids": [obj["ID"] for obj in self.objects if obj["Collected"]],
+                "shown_tips": list(self.shown_tips),
+                "completed_quests": list(self.completed_quests),
+                "hero_log": self.hero_log[-20:],
+                "battle_won": getattr(self, "battle_won", False),
+                "shrine_solved": getattr(self, "shrine_solved", False),
+                "keys_held": list(getattr(self, "keys_held", set())),
+                "shrine_levers": getattr(self, "shrine_levers", {}),
             }
             with open(os.path.join(PROJECT_DIR, "savegame.json"), "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
@@ -432,6 +534,11 @@ class HeroesGameEngine:
         try:
             with open(save_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            saved_act = data.get("current_act", "act1")
+            if saved_act != self.current_act:
+                self.load_scenario(saved_act)
+                self.reset_game()
+                self.current_act = saved_act
             self.hero_x = data.get("hero_x", 1)
             self.hero_y = data.get("hero_y", 0)
             self.gold = data.get("gold", 0)
@@ -446,6 +553,13 @@ class HeroesGameEngine:
             for obj in self.objects:
                 if obj["ID"] in collected_ids:
                     obj["Collected"] = True
+            self.shown_tips = set(data.get("shown_tips", []))
+            self.completed_quests = set(data.get("completed_quests", []))
+            self.hero_log = data.get("hero_log", [])
+            self.battle_won = data.get("battle_won", False)
+            self.shrine_solved = data.get("shrine_solved", False)
+            self.keys_held = set(data.get("keys_held", []))
+            self.shrine_levers = data.get("shrine_levers", {"red": False, "blue": False, "green": False})
             return True
         except Exception as e:
             print("Failed to load savegame:", e)
@@ -459,24 +573,639 @@ class HeroesGameEngine:
                     os.remove(save_path)
                 except OSError:
                     pass
-        self.grid = self._load_map(os.path.join(PROJECT_DIR, "world_map.csv"))
-        # Pristine copy of the original terrain (bridges use it to know what they span)
-        self.base_grid = self._load_map(os.path.join(PROJECT_DIR, "world_map.csv"))
-        self.objects = self._load_objects(os.path.join(PROJECT_DIR, "map_objects.csv"))
-        self.hero_x = 1
-        self.hero_y = 0
-        self.gold = 0
-        self.wood = 0
-        self.dragons = 0
+        # Load map and objects from scenario config
+        sc = self.scenario or {}
+        map_file = os.path.join(PROJECT_DIR, sc.get("map_file", "world_map.csv"))
+        obj_file = os.path.join(PROJECT_DIR, sc.get("objects_file", "map_objects.csv"))
+        self.grid = self._load_map(map_file)
+        self.base_grid = self._load_map(map_file)
+        self.objects = self._load_objects(obj_file)
+        start = sc.get("hero_start", [1, 0])
+        self.hero_x = start[0]
+        self.hero_y = start[1]
+        self.gold = sc.get("starting_gold", 0)
+        self.wood = sc.get("starting_wood", 0)
+        self.dragons = sc.get("starting_dragons", 0)
         self.day = 1
-        self.max_mp = 12.0
+        self.max_mp = sc.get("max_mp", 12.0)
         self.quest_stage = 1
         self.victory = False
-        self.status_msg = "Map Reset! Edit my_hero.py and press Ctrl+S to plan your first turn!"
+        self.status_msg = "Type spells below! Example: move_right(3)"
         self.status_color = (120, 240, 150)
         # Clear preview -- don't auto-run so MP shows 0/12 cleanly
         self.preview_data: dict[str, Any] = {"mp_used": 0.0, "path": [], "terraforms": [], "valid": False, "picked_ids": [], "expected_gold": 0, "expected_wood": 0, "expected_dragons": 0}
         self.last_mtime = 0  # Force re-preview on next save
+
+        # ── Spell Command Console state ──
+        self.console_input = ""              # Current line being typed
+        self.console_commands: list[str] = []  # Accumulated commands this turn
+        self.console_history: list[str] = []   # Full history for ↑/↓ recall
+        self.console_history_idx = -1          # -1 = not browsing history
+        self.console_output: list[tuple[str, tuple[int,int,int]]] = []  # (text, color) log lines
+        self.console_cursor_blink = 0          # For blinking cursor animation
+        self.console_multiline = ""            # Buffer for multi-line blocks (for/if)
+        self.console_in_block = False          # True when collecting indented continuation
+        self.console_active = True             # Console always active in this version
+
+        # ── Act II+ systems ──
+        self.shown_tips: set[str] = set()      # Archmage Tips already shown (persisted)
+        self.completed_quests: set[str] = set()  # Quest IDs completed (persisted)
+        self.active_tip: dict[str, Any] | None = None  # Currently displayed tip overlay
+        self.hero_log: list[str] = []          # Output from say() and print()
+        self.sphinx_answers_correct = 0        # Track Sphinx progress
+
+        # ── Act III systems ──
+        self.in_battle = False                 # True during battle tutorial
+        self.battle_won = False                # True after winning battle
+        self.battle_lost = False               # True after losing battle
+        self.battle_round = 0
+        self.battle_player: dict = {}
+        self.battle_enemy: dict = {}
+        self.shrine_levers = {"red": False, "blue": False, "green": False}
+        self.shrine_solved = False
+        self.keys_held: set[str] = set()       # Keys collected (e.g. "blue")
+
+        # ── Button rects (overwritten by draw() every frame) ──
+        self.btn_preview = pygame.Rect(0, 0, 0, 0)
+        self.btn_commit = pygame.Rect(0, 0, 0, 0)
+        self.btn_grid = pygame.Rect(0, 0, 0, 0)
+        self.btn_reset = pygame.Rect(0, 0, 0, 0)
+        self.btn_next_act = None
+
+    # ── Campaign / Scenario system ──
+    def load_scenario(self, scenario_id: str):
+        """Load a scenario config JSON file."""
+        config_path = os.path.join(ENGINE_DIR, "scenarios", f"{scenario_id}.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                self.scenario = json.load(f)
+            self.current_act = scenario_id
+        else:
+            self.scenario = None
+            self.current_act = scenario_id
+
+    def start_act(self, act_id: str):
+        """Transition to a new act (called when beating the current act's boss)."""
+        self.load_scenario(act_id)
+        self.reset_game(clear_save=True)
+        self.console_output.clear()
+        title = self.scenario.get("title", act_id) if self.scenario else act_id
+        self.console_add_output(f"═══ {title} ═══", (250, 215, 75))
+        self.console_add_output(self.scenario.get("subtitle", ""), (180, 200, 220)) if self.scenario else None
+        self.console_add_output("Type 'help' for commands.", (140, 180, 200))
+        self.save_game()
+
+    # ── Archmage Tip popup system ──
+    ARCHMAGE_TIPS: dict[str, dict[str, Any]] = {
+        "comments": {
+            "title": "✦ The Scroll of Silence",
+            "lines": [
+                "Lines starting with # are invisible to Python.",
+                "# this line does nothing — but humans can read it!",
+                "Use # to SILENCE the cursed spells, then move safely.",
+            ]
+        },
+        "output": {
+            "title": "✦ The Hero's Voice",
+            "lines": [
+                'say("hello") shouts a message on the map.',
+                'print("info") writes to your spell log below.',
+                'The gate wants you to SAY the password!',
+            ]
+        },
+        "variables": {
+            "title": "✦ Names for Things",
+            "lines": [
+                "x = 5 stores the number 5 in a box called x.",
+                "x, y = scout('Merchant') finds where the Merchant is!",
+                "Then use: move_to(x, y)",
+            ]
+        },
+        "data_types": {
+            "title": "✦ Not Everything is a Number",
+            "lines": [
+                '3 is an int.  3.5 is a float.  "hello" is a str.',
+                "True and False are bools. Use type(x) to check!",
+                "The Sphinx wants answers of the RIGHT TYPE.",
+            ]
+        },
+        "constants": {
+            "title": "✦ The Laws of the Realm",
+            "lines": [
+                "COST = 60 names a price you use many times.",
+                "UPPERCASE names = constants that never change.",
+                "Change it ONCE at the top, it updates everywhere!",
+            ]
+        },
+        "operators": {
+            "title": "✦ The Art of Calculation",
+            "lines": [
+                "gold // 60 = how many you can buy (drops remainder).",
+                "gold % 60 = the leftover gold (the change).",
+                "Try: print(1500 // 60, 'pikemen', 1500 % 60, 'change')",
+            ]
+        },
+        "type_cast": {
+            "title": "✦ Shape-Shifting Magic",
+            "lines": [
+                'Signs give you TEXT: "1500" — that\'s NOT a number!',
+                'Use int("1500") to turn text into the number 1500.',
+                'Use float("2.5") for decimals, str(42) for text.',
+            ]
+        },
+        "strings": {
+            "title": "✦ Words Have Power",
+            "lines": [
+                '"DRAGON"[0] is "D".  "DRAGON"[::-1] is "NOGARD".',
+                '.upper() makes UPPERCASE.  .lower() makes lowercase.',
+                "Reverse the Keymaster's scroll to open the gate!",
+            ]
+        },
+        # ── Act III Tips ──
+        "if_else": {
+            "title": "✦ The Fork in the Road",
+            "lines": [
+                'if today() == "sandstorm": take the detour!',
+                'else: go straight across the desert.',
+                "The weather changes every day. You must DECIDE!",
+            ]
+        },
+        "look_ahead": {
+            "title": "✦ Scout the Path",
+            "lines": [
+                'look(x, y) tells you what is at a tile.',
+                'if look(6, 3) == "Monster": go around!',
+                "Check before you move — or walk into danger!",
+            ]
+        },
+        "boolean": {
+            "title": "✦ True and False",
+            "lines": [
+                "and = BOTH must be true.  or = ONE is enough.",
+                "not = flip True to False (or False to True).",
+                "Set levers to make the shrine's rule TRUE!",
+            ]
+        },
+        "compound_if": {
+            "title": "✦ Complex Decisions",
+            "lines": [
+                "if gold >= 500 and not is_sandstorm:",
+                "  Combine conditions with and / or / not.",
+                "Parentheses ( ) group conditions like math!",
+            ]
+        },
+        "battle_intro": {
+            "title": "✦ The Arena Awaits!",
+            "lines": [
+                "Your Pikemen face the Troglodytes!",
+                "if adjacent: attack()  else: move_toward()",
+                "Type ONE command per round. Win to proceed!",
+            ]
+        },
+    }
+
+    def show_tip(self, tip_id: str):
+        """Show an Archmage Tip popup (only once per save)."""
+        if tip_id in self.shown_tips:
+            return
+        tip_data = self.ARCHMAGE_TIPS.get(tip_id)
+        if not tip_data:
+            return
+        self.shown_tips.add(tip_id)
+        self.active_tip = dict(tip_data)
+
+    # ── Quest check functions for Act II ──
+    def _check_quest(self, quest_id: str) -> bool:
+        """Run the check function for a quest. Returns True if passed."""
+        checkers: dict[str, Any] = {
+            "comments": self._check_comments,
+            "output": self._check_output,
+            "variables": self._check_variables,
+            "data_types": self._check_data_types,
+            "constants": self._check_constants,
+            "operators": self._check_operators,
+            "type_cast": self._check_type_cast,
+            "strings": self._check_strings,
+        }
+        checker = checkers.get(quest_id)
+        if checker:
+            return checker()
+        return False
+
+    def _check_comments(self) -> bool:
+        """Did they type at least 2 lines starting with #?"""
+        return sum(1 for cmd in self.console_commands if cmd.strip().startswith("#")) >= 2
+
+    def _check_output(self) -> bool:
+        """Did they use say() with the correct password?"""
+        return any(a[0] == "say" and "erathia" in str(a[1]).lower()
+                   for a in hero_api._actions)
+
+    def _check_variables(self) -> bool:
+        """Did they use scout() and store the result?"""
+        code = "\n".join(self.console_commands)
+        return "scout(" in code and "=" in code
+
+    def _check_data_types(self) -> bool:
+        """Did they answer the Sphinx correctly?"""
+        return self.sphinx_answers_correct >= 3
+
+    def _check_constants(self) -> bool:
+        """Did they define an UPPERCASE constant?"""
+        code = "\n".join(self.console_commands)
+        return bool(re.search(r'\b[A-Z_]{2,}\s*=', code))
+
+    def _check_operators(self) -> bool:
+        """Did they use // or % in their commands?"""
+        code = "\n".join(self.console_commands)
+        return "//" in code or "%" in code
+
+    def _check_type_cast(self) -> bool:
+        """Did they use int() or float() conversion?"""
+        code = "\n".join(self.console_commands)
+        return ("int(" in code or "float(" in code)
+
+    def _check_strings(self) -> bool:
+        """Did they open the gate with the reversed password?"""
+        return any(a[0] == "open_gate" and a[1] == "DRAGON"
+                   for a in hero_api._actions)
+
+    # ── Act II Guard interaction logic ──
+    def _check_act2_guard(self, obj, sim):
+        """Check if an Act II guard's quest requirement is met. Returns (passed, hint)."""
+        guard_quests = {
+            4: ("comments", "Silence curses with # comments first!"),
+            6: ("output", 'Use say("For Erathia!") to shout the password!'),
+            10: ("variables", "Use x, y = scout('Merchant') and move_to(x, y)!"),
+            17: ("operators", "Use // to calculate! e.g. print(gold // 60)"),
+            22: ("type_cast", "Read the signs with read_sign(x,y) and convert with int()!"),
+            24: ("strings", 'Reverse "NOGARD" and use open_gate()!'),
+        }
+        guard_id = obj["ID"]
+        if guard_id in guard_quests:
+            quest_id, hint = guard_quests[guard_id]
+            if quest_id in self.completed_quests or self._check_quest(quest_id):
+                self.completed_quests.add(quest_id)
+                return True, ""
+            return False, hint
+        return True, ""  # Unknown guard, let through
+
+    # ── New API helper methods ──
+    def _api_scout(self, name: str):
+        """Find an object by name, return its (x, y)."""
+        name_lower = str(name).lower()
+        for obj in self.objects:
+            if not obj["Collected"] and name_lower in obj["Name"].lower():
+                return (obj["X"], obj["Y"])
+        return None
+
+    def _api_read_sign(self, x: int, y: int) -> str:
+        """Read a sign's text at (x, y)."""
+        for obj in self.objects:
+            if obj["X"] == int(x) and obj["Y"] == int(y) and obj["Type"] == "Sign" and not obj["Collected"]:
+                return obj["Description"]
+        return ""
+
+    def _build_hero_object(self):
+        """Build a read-only hero stats object."""
+        class Hero:
+            pass
+        h = Hero()
+        h.x, h.y = self.hero_x, self.hero_y
+        h.gold = self.gold
+        h.wood = self.wood
+        h.name = "Roland"
+        h.mp = self.max_mp
+        h.dragons = self.dragons
+        h.day = self.day
+        return h
+
+    def _handle_say_actions(self):
+        """Process any say() actions from the current command set."""
+        for act in hero_api._actions:
+            if act[0] == "say":
+                text = str(act[1])
+                self.hero_log.append(text)
+                # Add floating speech bubble
+                px = self.hero_x * TILE_SIZE + 8
+                py = self.hero_y * TILE_SIZE - 20
+                self.floating_texts.append([f'💬 {text}', px, py, 90, (255, 255, 220)])
+
+    def _handle_sphinx_answers(self):
+        """Process answer_sphinx() actions and check types."""
+        riddles = [
+            ("float", "a number with a DECIMAL POINT"),
+            ("str", "a piece of TEXT in quotes"),
+            ("bool", "TRUE or FALSE"),
+        ]
+        answer_idx = 0
+        for act in hero_api._actions:
+            if act[0] == "answer_sphinx" and answer_idx < len(riddles):
+                value = act[1]
+                expected_type, desc = riddles[answer_idx]
+                actual_type = type(value).__name__
+                if actual_type == expected_type:
+                    self.sphinx_answers_correct += 1
+                    self.console_add_output(f"✓ Correct! {repr(value)} is a {actual_type}.", (110, 255, 130))
+                else:
+                    self.console_add_output(f"✗ Wrong type! {repr(value)} is a {actual_type}, not a {expected_type}.", (255, 120, 120))
+                    self.console_add_output(f"  The Sphinx wanted: {desc}", (255, 200, 100))
+                answer_idx += 1
+
+    def _handle_open_gate(self):
+        """Process open_gate() actions."""
+        for act in hero_api._actions:
+            if act[0] == "open_gate":
+                if act[1] == "DRAGON":
+                    self.console_add_output("✓ The gate swings open! DRAGON is correct!", (110, 255, 130))
+                else:
+                    self.console_add_output(f'✗ "{act[1]}" is not the password. Hint: reverse "NOGARD"!', (255, 120, 120))
+
+    def _populate_scout_and_sign_data(self):
+        """Fill hero_api scout/sign lookup tables before exec."""
+        hero_api._scout_results = {}
+        hero_api._sign_results = {}
+        for obj in self.objects:
+            if not obj["Collected"]:
+                hero_api._scout_results[obj["Name"]] = (obj["X"], obj["Y"])
+                if obj["Type"] == "Sign":
+                    hero_api._sign_results[(obj["X"], obj["Y"])] = obj["Description"]
+
+    # ── Act III: Daily Events, Look, Shrines, Battle Tutorial ──
+    def _get_today(self) -> str:
+        """Deterministic daily event based on day number."""
+        events = ["clear", "sandstorm", "oasis", "clear", "sandstorm",
+                  "clear", "oasis", "clear", "sandstorm", "clear"]
+        return events[self.day % len(events)]
+
+    def _populate_act3_data(self):
+        """Fill hero_api with Act III data: weather, look results, keys."""
+        hero_api._today_result = self._get_today()
+        hero_api._keys_held = getattr(self, "keys_held", set())
+        # Build look results: terrain + objects
+        hero_api._look_results = {}
+        if hasattr(self, "grid") and self.grid:
+            for r in range(len(self.grid)):
+                for c in range(len(self.grid[0])):
+                    hero_api._look_results[(c, r)] = self.grid[r][c]
+        # Objects override terrain
+        for obj in self.objects:
+            if not obj["Collected"]:
+                hero_api._look_results[(obj["X"], obj["Y"])] = obj["Type"]
+
+    def _handle_set_lever(self):
+        """Process set_lever() actions and check shrine solutions."""
+        levers = getattr(self, "shrine_levers", {"red": False, "blue": False, "green": False})
+        for act in hero_api._actions:
+            if act[0] == "set_lever":
+                levers[act[1]] = act[2]
+                self.console_add_output(f"⚙ Lever '{act[1]}' set to {act[2]}", (200, 180, 255))
+        self.shrine_levers = levers
+        # Check all shrine objects to see if any are solved
+        for obj in self.objects:
+            if obj["Type"] == "Shrine" and not obj["Collected"]:
+                expr = obj["Description"]
+                if self._eval_shrine(expr, levers):
+                    obj["Collected"] = True
+                    self.shrine_solved = True
+                    self.console_add_output(f"✓ Shrine solved! Rule: {expr} = True!", (110, 255, 130))
+                    px, py = obj["X"] * TILE_SIZE + 8, obj["Y"] * TILE_SIZE
+                    self.floating_texts.append(["✦ Shrine Solved!", px, py, 80, (200, 180, 255)])
+
+    def _eval_shrine(self, expression: str, levers: dict) -> bool:
+        """Evaluate a boolean expression with lever values."""
+        expr = expression.replace("AND", "and").replace("OR", "or").replace("NOT", "not")
+        ns = {k: v for k, v in levers.items()}
+        try:
+            return bool(eval(expr, {"__builtins__": {}}, ns))
+        except Exception:
+            return False
+
+    # ── Battle Tutorial (Act III simplified 1v1) ──
+    def _start_battle(self):
+        """Start a battle tutorial: Pikemen vs Troglodytes."""
+        self.in_battle = True
+        self.battle_round = 0
+        self.battle_won = False
+        self.battle_lost = False
+        # Player: 10 Pikemen, Atk 4, Def 5, Dmg 1-3, HP 10, Speed 4
+        self.battle_player = {
+            "name": "Pikemen", "count": 10, "hp": 10, "top_hp": 10,
+            "atk": 4, "dfn": 5, "dmg_min": 1, "dmg_max": 3,
+            "x": 1, "y": 3, "speed": 4,
+        }
+        # Enemy: 8 Troglodytes, Atk 4, Def 3, Dmg 1-3, HP 5, Speed 4
+        self.battle_enemy = {
+            "name": "Troglodytes", "count": 8, "hp": 5, "top_hp": 5,
+            "atk": 4, "dfn": 3, "dmg_min": 1, "dmg_max": 3,
+            "x": 7, "y": 3, "speed": 4,
+        }
+        self.console_add_output("═══ BATTLE! ═══", (255, 80, 80))
+        self.console_add_output(f"Your {self.battle_player['count']} Pikemen vs {self.battle_enemy['count']} Troglodytes!", (255, 200, 100))
+        self.console_add_output("Commands: attack()  move_toward()  defend()", (180, 220, 255))
+        self.console_add_output("Type a command and press Enter for each round.", (140, 180, 200))
+
+    def _run_battle_round(self):
+        """Execute one round of the battle tutorial."""
+        import random
+        if not getattr(self, "in_battle", False):
+            return
+        self.battle_round += 1
+        p = self.battle_player
+        e = self.battle_enemy
+        dist = abs(p["x"] - e["x"]) + abs(p["y"] - e["y"])
+
+        # Process player action
+        action = None
+        for act in hero_api._actions:
+            if act[0] in ("battle_attack", "battle_move_toward", "battle_defend"):
+                action = act[0]
+                break
+
+        if action == "battle_attack":
+            if dist <= 1:
+                dmg = self._battle_calc_damage(p, e)
+                self._battle_apply_damage(e, dmg)
+                self.console_add_output(f"⚔ Pikemen attack! {dmg} damage to Troglodytes!", (120, 255, 120))
+            else:
+                # Move adjacent first, then attack if possible
+                self._battle_move_unit(p, e)
+                new_dist = abs(p["x"] - e["x"]) + abs(p["y"] - e["y"])
+                if new_dist <= 1:
+                    dmg = self._battle_calc_damage(p, e)
+                    self._battle_apply_damage(e, dmg)
+                    self.console_add_output(f"⚔ Pikemen charge and attack! {dmg} damage!", (120, 255, 120))
+                else:
+                    self.console_add_output(f"→ Pikemen advance toward Troglodytes.", (200, 220, 255))
+        elif action == "battle_move_toward":
+            self._battle_move_unit(p, e)
+            self.console_add_output(f"→ Pikemen move to ({p['x']}, {p['y']}).", (200, 220, 255))
+        elif action == "battle_defend":
+            p["defending"] = True
+            self.console_add_output("🛡 Pikemen brace for impact! (+30% defense)", (100, 200, 255))
+        else:
+            self.console_add_output("? No valid battle command. Use attack(), move_toward(), or defend().", (255, 200, 100))
+
+        # Check if enemy is dead
+        if e["count"] <= 0:
+            self.battle_won = True
+            self.in_battle = False
+            self.console_add_output("═══ VICTORY! Troglodytes defeated! ═══", (255, 215, 0))
+            self.console_add_output(f"Your Pikemen survived: {p['count']} remaining.", (120, 255, 120))
+            return
+
+        # Enemy turn: simple AI — move toward, attack if adjacent
+        dist = abs(p["x"] - e["x"]) + abs(p["y"] - e["y"])
+        if dist <= 1:
+            defense_bonus = 1.3 if p.get("defending") else 1.0
+            dmg = self._battle_calc_damage(e, p, defense_mult=defense_bonus)
+            self._battle_apply_damage(p, dmg)
+            self.console_add_output(f"💀 Troglodytes attack! {dmg} damage to Pikemen!", (255, 120, 120))
+        else:
+            self._battle_move_unit(e, p)
+            self.console_add_output(f"→ Troglodytes advance to ({e['x']}, {e['y']}).", (255, 180, 180))
+
+        p["defending"] = False  # Reset defend
+
+        # Check if player is dead
+        if p["count"] <= 0:
+            self.battle_lost = True
+            self.in_battle = False
+            self.console_add_output("═══ DEFEAT! Your Pikemen have fallen! ═══", (255, 80, 80))
+            self.console_add_output("Try again! Use if/else to decide when to attack vs defend.", (255, 200, 100))
+            return
+
+        # Status
+        self.console_add_output(f"── Round {self.battle_round} end: Pikemen {p['count']}×{p['top_hp']}hp | Trogs {e['count']}×{e['top_hp']}hp ──", (180, 180, 200))
+
+    def _battle_calc_damage(self, attacker, defender, defense_mult=1.0):
+        """Calculate battle damage (simplified H3 formula)."""
+        import random
+        base = attacker["count"] * random.randint(attacker["dmg_min"], attacker["dmg_max"])
+        atk, dfn = attacker["atk"], int(defender["dfn"] * defense_mult)
+        if atk > dfn:
+            base = int(base * (1 + 0.05 * min(atk - dfn, 60)))
+        else:
+            base = int(base * max(0.3, 1 - 0.025 * min(dfn - atk, 28)))
+        return max(1, base)
+
+    def _battle_apply_damage(self, stack, damage):
+        """Apply damage to a unit stack, killing units as needed."""
+        remaining_dmg = damage
+        while remaining_dmg > 0 and stack["count"] > 0:
+            if remaining_dmg >= stack["top_hp"]:
+                remaining_dmg -= stack["top_hp"]
+                stack["count"] -= 1
+                stack["top_hp"] = stack["hp"]  # Next unit at full HP
+            else:
+                stack["top_hp"] -= remaining_dmg
+                remaining_dmg = 0
+
+    def _battle_move_unit(self, mover, target):
+        """Move a unit toward a target (simple step, not pathfinding)."""
+        dx = target["x"] - mover["x"]
+        dy = target["y"] - mover["y"]
+        steps = min(mover["speed"], abs(dx) + abs(dy) - 1)  # Stop adjacent
+        for _ in range(max(1, steps)):
+            if abs(dx) >= abs(dy):
+                mover["x"] += 1 if dx > 0 else -1
+            else:
+                mover["y"] += 1 if dy > 0 else -1
+            dx = target["x"] - mover["x"]
+            dy = target["y"] - mover["y"]
+            if abs(dx) + abs(dy) <= 1:
+                break
+
+    # ── Act III quest checks ──
+    def _check_act3_weather(self) -> bool:
+        """Used if/today() in commands."""
+        code = "\n".join(self.console_commands)
+        return "if " in code and "today()" in code
+
+    def _check_act3_look(self) -> bool:
+        """Used look() with if."""
+        code = "\n".join(self.console_commands)
+        return "look(" in code and "if " in code
+
+    def _check_act3_shrine(self) -> bool:
+        """Solved a logic shrine."""
+        return getattr(self, "shrine_solved", False)
+
+    def _check_act3_compound(self) -> bool:
+        """Used and/or/not in an if statement."""
+        code = "\n".join(self.console_commands)
+        has_bool = " and " in code or " or " in code or "not " in code
+        return has_bool and "if " in code
+
+    def _check_act3_battle(self) -> bool:
+        """Won the battle tutorial."""
+        return getattr(self, "battle_won", False)
+
+    def _check_act3_guard(self, obj, sim):
+        """Check if an Act III guard's quest requirement is met."""
+        guard_quests = {
+            5: ("act3_weather", "Use if/else with today() to handle weather!"),
+            9: ("act3_look", "Use look(x, y) with if to check the path!"),
+            14: ("act3_shrine", "Solve a Logic Shrine with set_lever()!"),
+            18: ("act3_compound", "Use and/or/not in an if statement!"),
+            22: ("act3_battle", "Win the Arena battle with attack()!"),
+        }
+        guard_id = obj["ID"]
+        if guard_id in guard_quests:
+            quest_id, hint = guard_quests[guard_id]
+            checker = {
+                "act3_weather": self._check_act3_weather,
+                "act3_look": self._check_act3_look,
+                "act3_shrine": self._check_act3_shrine,
+                "act3_compound": self._check_act3_compound,
+                "act3_battle": self._check_act3_battle,
+            }
+            check_fn = checker.get(quest_id)
+            if quest_id in self.completed_quests or (check_fn and check_fn()):
+                self.completed_quests.add(quest_id)
+                return True, ""
+            return False, hint
+        return True, ""
+
+    def _build_act3_sidebar_scroll(self) -> list:
+        """Build the sidebar quest list for Act III."""
+        quests = [
+            ("act3_weather", "1. If/Else", "Handle daily weather"),
+            ("act3_look", "2. Scout", "Check tiles with look()"),
+            ("act3_shrine", "3. Boolean", "Solve logic shrines"),
+            ("act3_compound", "4. Compound", "Use and/or/not in if"),
+            ("act3_battle", "5. Battle", "Win the Arena fight"),
+        ]
+        scroll: list[tuple[str, tuple[int, int, int]]] = [
+            ("ACT III: THE SHIFTING SANDS", (255, 220, 85)),
+            (f"Quests: {sum(1 for q, _, _ in quests if q in self.completed_quests)} / 5", (180, 200, 220)),
+            (f"Weather: {self._get_today().upper()}", (255, 200, 100)),
+            ("", (0, 0, 0)),
+        ]
+        for quest_id, name, desc in quests:
+            done = quest_id in self.completed_quests
+            marker = "+" if done else "-"
+            col = (110, 235, 130) if done else (200, 200, 215)
+            scroll.append((f"  {marker} {name}: {desc}", col))
+
+        scroll.append(("", (0, 0, 0)))
+        # Battle status
+        if getattr(self, "in_battle", False):
+            p = self.battle_player
+            e = self.battle_enemy
+            scroll.append(("BATTLE IN PROGRESS!", (255, 80, 80)))
+            scroll.append((f"  Pikemen: {p['count']}x{p['top_hp']}hp", (120, 255, 120)))
+            scroll.append((f"  Troglodytes: {e['count']}x{e['top_hp']}hp", (255, 120, 120)))
+            scroll.append((f"  Round: {self.battle_round}", (200, 200, 220)))
+        else:
+            for quest_id, name, desc in quests:
+                if quest_id not in self.completed_quests:
+                    scroll.append(("CURRENT OBJECTIVE:", (135, 220, 255)))
+                    scroll.append((f"  {desc}", (255, 230, 95)))
+                    break
+            else:
+                scroll.append(("ALL QUESTS DONE! Defeat the Boss!", (255, 215, 0)))
+        return scroll
 
     def _load_map(self, filename):
         grid = []
@@ -523,7 +1252,20 @@ class HeroesGameEngine:
             sim["expected_wood"] += obj["Value"]
             sim["picked_ids"].append(obj["ID"])
         elif obj["Type"] == "Guard":
-            if sim["expected_gold"] < obj["Value"]:
+            # Quest-based guards (Value == 0, checked by act-specific quest system)
+            if obj["Value"] == 0 and self.current_act != "act1":
+                if self.current_act == "act3":
+                    passed, hint = self._check_act3_guard(obj, sim)
+                else:
+                    passed, hint = self._check_act2_guard(obj, sim)
+                if not passed:
+                    sim["valid"] = False
+                    sim["error"] = f"🔒 {obj['Name']}: {hint}"
+                    sim["path"].append((x, y, mp + cost, False))
+                    return False
+                sim["picked_ids"].append(obj["ID"])
+            # Act I gold-based guards
+            elif sim["expected_gold"] < obj["Value"]:
                 sim["valid"] = False
                 sim["error"] = f"Guard at ({x},{y}) demands {obj['Value']} Gold! (You have {sim['expected_gold']})"
                 sim["path"].append((x, y, mp + cost, False))
@@ -545,17 +1287,247 @@ class HeroesGameEngine:
             else:
                 sim["picked_ids"].append(obj["ID"])
         elif obj["Type"] == "Boss":
-            needed = obj["Value"]
-            if sim["expected_dragons"] < needed:
-                sim["valid"] = False
-                sim["error"] = f"The {obj['Name']} is too powerful! Need {needed} Dragons! (You have {sim['expected_dragons']})"
-                sim["path"].append((x, y, mp + cost, False))
-                return False
+            if self.current_act == "act1":
+                needed = obj["Value"]
+                if sim["expected_dragons"] < needed:
+                    sim["valid"] = False
+                    sim["error"] = f"The {obj['Name']} is too powerful! Need {needed} Dragons! (You have {sim['expected_dragons']})"
+                    sim["path"].append((x, y, mp + cost, False))
+                    return False
+                else:
+                    sim["picked_ids"].append(obj["ID"])
             else:
+                # Act II+ boss: check all quests completed
+                all_done = len(self.completed_quests) >= 7  # 7 concept quests before boss
+                if not all_done:
+                    sim["valid"] = False
+                    done = len(self.completed_quests)
+                    sim["error"] = f"The {obj['Name']} laughs! Complete all quests first! ({done}/7)"
+                    sim["path"].append((x, y, mp + cost, False))
+                    return False
                 sim["picked_ids"].append(obj["ID"])
+        # Act II types: Sign, NPC, Sphinx — auto-collect on visit
+        elif obj["Type"] == "Sign":
+            sim["picked_ids"].append(obj["ID"])
+        elif obj["Type"] == "NPC":
+            # Arena Master triggers battle
+            if "Arena" in obj["Name"] and self.current_act == "act3":
+                if not getattr(self, "in_battle", False) and not getattr(self, "battle_won", False):
+                    self._start_battle()
+            sim["expected_gold"] += obj["Value"]
+            sim["picked_ids"].append(obj["ID"])
+        elif obj["Type"] == "Sphinx":
+            sim["picked_ids"].append(obj["ID"])
+        elif obj["Type"] == "Shrine":
+            sim["picked_ids"].append(obj["ID"])
+        elif obj["Type"] == "Marketplace":
+            sim["picked_ids"].append(obj["ID"])
         return True
 
+    # ------------------------------------------------------------------
+    # SPELL COMMAND CONSOLE — execute typed commands
+    # ------------------------------------------------------------------
+    def _build_console_namespace(self):
+        """Build the exec() namespace with all hero_api functions available."""
+        self._populate_scout_and_sign_data()
+        self._populate_act3_data()
+        ns: dict[str, Any] = {
+            # Movement
+            "move_right": hero_api.move_right,
+            "move_left": hero_api.move_left,
+            "move_down": hero_api.move_down,
+            "move_up": hero_api.move_up,
+            "move_by": hero_api.move_by,
+            "move_to": hero_api.move_to,
+            "terraform": hero_api.terraform,
+            # Act II functions
+            "say": hero_api.say,
+            "scout": hero_api.scout,
+            "read_sign": hero_api.read_sign,
+            "answer_sphinx": hero_api.answer_sphinx,
+            "recruit": hero_api.recruit,
+            "open_gate": hero_api.open_gate,
+            # Act III functions
+            "today": hero_api.today,
+            "look": hero_api.look,
+            "has_key": hero_api.has_key,
+            "set_lever": hero_api.set_lever,
+            "attack": hero_api.attack,
+            "move_toward": hero_api.move_toward,
+            "defend": hero_api.defend,
+            # Hero stats
+            "hero": self._build_hero_object(),
+            "gold": self.gold,
+            "wood": self.wood,
+            "dragons": self.dragons,
+            "day": self.day,
+            "hero_x": self.hero_x,
+            "hero_y": self.hero_y,
+            # Builtins
+            "print": self._console_print,
+            "range": range,
+            "abs": abs,
+            "int": int,
+            "float": float,
+            "str": str,
+            "len": len,
+            "min": min,
+            "max": max,
+            "type": type,
+            "round": round,
+            "bool": bool,
+            "True": True,
+            "False": False,
+            "None": None,
+        }
+        return ns
+
+    def _console_print(self, *args, **kwargs):
+        """Redirect print() calls from console into the output log."""
+        sep = kwargs.get("sep", " ")
+        text = sep.join(str(a) for a in args)
+        self.console_add_output(text, (200, 220, 255))
+
+    def console_add_output(self, text: str, color: tuple = (200, 200, 200)):
+        """Add a line to the console output log, keeping at most 50 lines."""
+        self.console_output.append((text, color))
+        if len(self.console_output) > 50:
+            self.console_output = self.console_output[-50:]
+
+    def execute_console_command(self, line: str):
+        """Execute a single console command string."""
+        stripped = line.strip()
+        if not stripped:
+            return
+
+        # ── Battle mode: each command = one round ──
+        if getattr(self, "in_battle", False):
+            hero_api._reset()
+            ns = self._build_console_namespace()
+            try:
+                exec(stripped, ns)
+            except Exception as e:
+                self.console_add_output(f"⚠ {e}", (255, 120, 80))
+            self._run_battle_round()
+            self.console_input = ""
+            # Add to history
+            if not self.console_history or self.console_history[-1] != stripped:
+                self.console_history.append(stripped)
+            self.console_history_idx = len(self.console_history)
+            return
+
+        # Special commands
+        if stripped.lower() in ("clear", "cls"):
+            self.console_commands.clear()
+            self.console_output.clear()
+            self.console_add_output("✦ Spells cleared! Ready for new commands.", (120, 240, 150))
+            self.run_console_preview()
+            return
+        if stripped.lower() == "undo":
+            if self.console_commands:
+                removed = self.console_commands.pop()
+                self.console_add_output(f"↩ Undid: {removed}", (255, 200, 100))
+                self.run_console_preview()
+            else:
+                self.console_add_output("Nothing to undo.", (180, 180, 180))
+            return
+        if stripped.lower() == "help":
+            for helpline in [
+                "╔══ MOVEMENT ═════════════════════╗",
+                "║ move_right(n)  move_left(n)      ║",
+                "║ move_up(n)     move_down(n)       ║",
+                "║ move_to(x, y)  move_by(dx, dy)   ║",
+                "║ terraform(x, y, 'B')             ║",
+                "╠══ ACT II SPELLS ════════════════╣",
+                '║ say("text")     - shout on map    ║',
+                "║ scout('name')   - find NPC (x,y)  ║",
+                "║ read_sign(x,y)  - read sign text   ║",
+                "║ answer_sphinx(v) - answer riddle   ║",
+                "║ recruit('unit',n) - hire troops    ║",
+                '║ open_gate("pw")  - unlock gate     ║',
+                "╠══ ACT III DECISIONS ════════════╣",
+                "║ today()    - check the weather     ║",
+                "║ look(x, y) - inspect a tile        ║",
+                "║ has_key(c) - check for a key        ║",
+                '║ set_lever("red", True)  - shrine   ║',
+                "║ attack()       - battle: hit!       ║",
+                "║ move_toward()  - battle: advance    ║",
+                "║ defend()       - battle: brace      ║",
+                "╠══ SPECIAL ═══════════════════════╣",
+                "║ clear  - erase all spells         ║",
+                "║ undo   - remove last spell        ║",
+                "║ list   - show queued spells        ║",
+                "║ Ctrl+Enter - commit turn           ║",
+                "╚═════════════════════════════════╝",
+            ]:
+                self.console_add_output(helpline, (180, 220, 255))
+            return
+        if stripped.lower() == "list":
+            if not self.console_commands:
+                self.console_add_output("(no spells queued yet)", (180, 180, 180))
+            else:
+                for i, cmd in enumerate(self.console_commands, 1):
+                    self.console_add_output(f"  {i}. {cmd}", (165, 250, 175))
+            return
+
+        # Store command and try to execute
+        self.console_commands.append(stripped)
+        self.console_add_output(f">>> {stripped}", (130, 200, 130))
+
+        # Run preview with all accumulated commands
+        self.run_console_preview()
+
+    def run_console_preview(self):
+        """Replay all console commands to build the preview."""
+        hero_api._reset()
+        sim: dict[str, Any] = {
+            "valid": True,
+            "path": [(self.hero_x, self.hero_y, 0.0, True)],
+            "terraforms": [],
+            "expected_gold": self.gold,
+            "expected_wood": self.wood,
+            "expected_dragons": self.dragons,
+            "mp_used": 0.0,
+            "error": None,
+            "picked_ids": []
+        }
+
+        if not self.console_commands:
+            # No console commands — show clean state
+            self.preview_data = sim
+            self.status_msg = "Type spells below! Example: move_right(3)"
+            self.status_color = (120, 240, 150)
+            return
+
+        # Replay all commands in sequence
+        ns = self._build_console_namespace()
+        code = "\n".join(self.console_commands)
+        try:
+            exec(code, {"__builtins__": {}}, ns)
+        except Exception as e:
+            etype = type(e).__name__
+            sim["valid"] = False
+            sim["error"] = f"⚡ Spell fizzled! {etype}: {e}"
+            self.preview_data = sim
+            self.status_msg = sim["error"]
+            self.status_color = (255, 105, 105)
+            # Remove the bad command
+            if self.console_commands:
+                bad = self.console_commands.pop()
+                self.console_add_output(f"⚡ Spell fizzled: {etype}: {e}", (255, 110, 110))
+                self.console_add_output(f"   (removed: {bad})", (255, 160, 100))
+            return
+
+        # Now simulate the path from hero_api._actions (same as run_preview)
+        self._simulate_path(sim)
+
     def run_preview(self):
+        """Run preview from my_hero.py file (fallback / legacy mode)."""
+        # If console has commands, use console preview instead
+        if self.console_commands:
+            self.run_console_preview()
+            return
+
         hero_api._reset()
         sim: dict[str, Any] = {
             "valid": True,
@@ -584,6 +1556,10 @@ class HeroesGameEngine:
             self.status_color = (255, 105, 105)
             return
 
+        self._simulate_path(sim)
+
+    def _simulate_path(self, sim: dict[str, Any]):
+        """Shared simulation logic: process hero_api._actions into a path preview."""
         temp_grid = [r[:] for r in self.grid]
         cx, cy = self.hero_x, self.hero_y
         mp = 0.0
@@ -689,6 +1665,14 @@ class HeroesGameEngine:
         if not self.preview_data or not self.preview_data["valid"]:
             return
 
+        # Process special actions before committing
+        if self.current_act != "act1":
+            self._handle_say_actions()
+            self._handle_sphinx_answers()
+            self._handle_open_gate()
+        if self.current_act == "act3":
+            self._handle_set_lever()
+
         for tx, ty, ttype in self.preview_data["terraforms"]:
             self.grid[ty][tx] = ttype
 
@@ -707,17 +1691,30 @@ class HeroesGameEngine:
                     elif obj["Type"] == "Mine":
                         self.floating_texts.append([f"+{obj['Value']} Wood/day!", px, py, 65, (120, 225, 255)])
                     elif obj["Type"] in ("Guard", "Mage"):
-                        self.floating_texts.append(["Region 2 Unlocked!", px, py, 80, (140, 255, 150)])
-                        self.quest_stage = 2
+                        if self.current_act == "act1":
+                            self.floating_texts.append(["Region 2 Unlocked!", px, py, 80, (140, 255, 150)])
+                            self.quest_stage = 2
+                        else:
+                            self.floating_texts.append(["✦ Gate Opened!", px, py, 60, (140, 255, 150)])
                     elif obj["Type"] == "Dwelling":
-                        self.floating_texts.append([f"+{obj['Value']} Green Dragons!", px, py, 80, (85, 255, 130)])
-                        if self.quest_stage < 3:
-                            self.quest_stage = 3
+                        if self.current_act == "act1":
+                            self.floating_texts.append([f"+{obj['Value']} Green Dragons!", px, py, 80, (85, 255, 130)])
+                            if self.quest_stage < 3:
+                                self.quest_stage = 3
+                        else:
+                            self.floating_texts.append(["Barracks Visited!", px, py, 60, (85, 255, 130)])
                     elif obj["Type"] == "Monster":
                         self.floating_texts.append([f"{obj['Name']} Defeated!", px, py, 65, (255, 180, 80)])
                     elif obj["Type"] == "Boss":
-                        self.floating_texts.append(["BOSS SLAIN!!! VICTORY!!!", px, py, 120, (255, 215, 0)])
+                        self.floating_texts.append(["BOSS DEFEATED!!! VICTORY!!!", px, py, 120, (255, 215, 0)])
                         boss_slain = True
+                    elif obj["Type"] == "NPC":
+                        self.floating_texts.append([f"+{obj['Value']} Gold from {obj['Name']}!", px, py, 65, (255, 225, 55)])
+                    elif obj["Type"] == "Sign":
+                        # Show sign text in console
+                        self.console_add_output(f"📜 Sign: {obj['Description']}", (255, 225, 95))
+                    elif obj["Type"] == "Sphinx":
+                        self.floating_texts.append(["The Sphinx speaks...", px, py, 60, (200, 180, 255)])
 
         self.gold = self.preview_data["expected_gold"]
         self.wood = self.preview_data["expected_wood"]
@@ -730,15 +1727,105 @@ class HeroesGameEngine:
 
         self.day += 1
 
+        # Show Archmage Tips based on hero position
+        if self.current_act == "act2":
+            self._trigger_zone_tips()
+        elif self.current_act == "act3":
+            self._trigger_act3_zone_tips()
+            # Show weather in console
+            self.console_add_output(f"  Weather: {self._get_today()}", (255, 200, 100))
+
         if boss_slain:
             self.victory = True
-            self.status_msg = f"VICTORY on Day {self.day}! The Black Dragon is defeated! You are a Python Master!"
+            if self.current_act == "act1":
+                self.status_msg = f"VICTORY on Day {self.day}! The Black Dragon is defeated! You are a Python Master!"
+            elif self.current_act == "act2":
+                self.status_msg = f"ACT II COMPLETE on Day {self.day}! You've mastered the Hero's Journal!"
+            elif self.current_act == "act3":
+                self.status_msg = f"ACT III COMPLETE on Day {self.day}! The Sand Wyrm is defeated!"
+            else:
+                self.status_msg = f"VICTORY on Day {self.day}!"
             self.status_color = (255, 215, 0)
         else:
-            self.status_msg = f"Day {self.day}! Hero at ({self.hero_x}, {self.hero_y}). Update my_hero.py!"
+            self.status_msg = f"Day {self.day}! Hero at ({self.hero_x}, {self.hero_y}). Cast new spells!"
             self.status_color = (125, 215, 255)
+        # Clear console commands for the new turn
+        self.console_commands.clear()
+        self.console_add_output(f"═══ Day {self.day} ═══ Hero at ({self.hero_x}, {self.hero_y})", (250, 215, 75))
         self.save_game()
-        self.run_preview()
+        self.run_console_preview()
+
+    def _trigger_zone_tips(self):
+        """Show Archmage Tips when the hero enters a quest zone in Act II."""
+        hx, hy = self.hero_x, self.hero_y
+        zones = [
+            # (x_range, y_range, tip_id)
+            ((1, 5), (1, 3), "comments"),
+            ((7, 12), (0, 3), "output"),
+            ((8, 12), (1, 4), "variables"),
+            ((13, 16), (3, 6), "data_types"),
+            ((12, 16), (5, 7), "constants"),
+            ((3, 7), (6, 9), "operators"),
+            ((7, 13), (7, 9), "type_cast"),
+            ((12, 15), (6, 8), "strings"),
+        ]
+        for (x0, x1), (y0, y1), tip_id in zones:
+            if x0 <= hx < x1 and y0 <= hy < y1:
+                self.show_tip(tip_id)
+                break
+
+    def _trigger_act3_zone_tips(self):
+        """Show Archmage Tips when the hero enters a quest zone in Act III."""
+        hx, hy = self.hero_x, self.hero_y
+        zones = [
+            ((0, 5), (3, 7), "if_else"),
+            ((5, 9), (1, 5), "look_ahead"),
+            ((7, 11), (5, 9), "boolean"),
+            ((10, 14), (2, 6), "compound_if"),
+            ((13, 16), (4, 9), "battle_intro"),
+        ]
+        for (x0, x1), (y0, y1), tip_id in zones:
+            if x0 <= hx < x1 and y0 <= hy < y1:
+                self.show_tip(tip_id)
+                break
+
+    def _build_act2_sidebar_scroll(self) -> list:
+        """Build the sidebar quest list for Act II."""
+        quests = [
+            ("comments", "1. Comments", "Silence curses with #"),
+            ("output", "2. Output", "Use say() and print()"),
+            ("variables", "3. Variables", "Store scout() results"),
+            ("data_types", "4. Data Types", "Answer the Sphinx"),
+            ("constants", "5. Constants", "Use UPPERCASE names"),
+            ("operators", "6. Operators", "Use // and % math"),
+            ("type_cast", "7. Type Casting", "Convert text to numbers"),
+            ("strings", "8. Strings", "Reverse the password"),
+        ]
+        title = self.scenario.get("title", "Act II") if self.scenario else "Act II"
+        scroll: list[tuple[str, tuple[int, int, int]]] = [
+            (f"ACT II: {title.upper()}", (255, 220, 85)),
+            (f"Quests: {len(self.completed_quests)} / 8 complete", (180, 200, 220)),
+            ("", (0, 0, 0)),
+        ]
+        for quest_id, name, desc in quests:
+            done = quest_id in self.completed_quests
+            marker = "+" if done else "-"
+            col = (110, 235, 130) if done else (200, 200, 215)
+            scroll.append((f"  {marker} {name}: {desc}", col))
+
+        # Current objective hint
+        scroll.append(("", (0, 0, 0)))
+        # Find first incomplete quest
+        for quest_id, name, desc in quests:
+            if quest_id not in self.completed_quests:
+                scroll.append(("CURRENT OBJECTIVE:", (135, 220, 255)))
+                scroll.append((f"  {desc}", (255, 230, 95)))
+                break
+        else:
+            scroll.append(("ALL QUESTS DONE! Defeat the Boss!", (255, 215, 0)))
+            scroll.append(("  Move to the Tax Collector.", (255, 230, 95)))
+
+        return scroll
 
     # ------------------------------------------------------------------------
     # RENDERING ON 1920x1080 CANVAS -> SCALED TO ANY WINDOW SIZE
@@ -824,6 +1911,7 @@ class HeroesGameEngine:
                 self.floating_texts.remove(ft)
 
         # 6b. Victory Overlay
+        self.btn_next_act = None  # Reset each frame
         if self.victory:
             map_w = MAP_COLS * TILE_SIZE
             map_h = MAP_ROWS * TILE_SIZE
@@ -835,15 +1923,61 @@ class HeroesGameEngine:
             pulse = int(abs(math.sin(self.tick * 0.05)) * 40)
             victory_font = pygame.font.SysFont("dejavusans", 72, bold=True)
             sub_font = pygame.font.SysFont("dejavusans", 36, bold=True)
+            btn_font = pygame.font.SysFont("dejavusans", 28, bold=True)
             gold_col = (215 + pulse, 185 + pulse // 2, 0)
 
             txt1 = victory_font.render("VICTORY!", True, gold_col)
-            txt2 = sub_font.render("The Black Dragon has been slain!", True, (240, 235, 220))
+            if self.current_act == "act1":
+                txt2 = sub_font.render("The Black Dragon has been slain!", True, (240, 235, 220))
+            else:
+                txt2 = sub_font.render("The Hero's Journal is complete!", True, (240, 235, 220))
             txt3 = sub_font.render(f"Conquered in {self.day} Days", True, (135, 220, 255))
 
-            self.canvas.blit(txt1, (map_w // 2 - txt1.get_width() // 2, map_h // 2 - 80))
-            self.canvas.blit(txt2, (map_w // 2 - txt2.get_width() // 2, map_h // 2))
-            self.canvas.blit(txt3, (map_w // 2 - txt3.get_width() // 2, map_h // 2 + 50))
+            self.canvas.blit(txt1, (map_w // 2 - txt1.get_width() // 2, map_h // 2 - 100))
+            self.canvas.blit(txt2, (map_w // 2 - txt2.get_width() // 2, map_h // 2 - 20))
+            self.canvas.blit(txt3, (map_w // 2 - txt3.get_width() // 2, map_h // 2 + 30))
+
+            # "Continue to Act II" button (only if there's a next act)
+            next_act = self.scenario.get("next_scenario") if self.scenario else None
+            if next_act:
+                self.btn_next_act = pygame.Rect(map_w // 2 - 180, map_h // 2 + 85, 360, 56)
+                glow_btn = int(abs(math.sin(self.tick * 0.08)) * 25)
+                btn_col = (35 + glow_btn, 140 + glow_btn, 65 + glow_btn)
+                pygame.draw.rect(self.canvas, btn_col, self.btn_next_act, border_radius=14)
+                pygame.draw.rect(self.canvas, (200, 235, 200), self.btn_next_act, 2, border_radius=14)
+                next_label = f"Continue to Act II →" if next_act == "act2" else f"Continue →"
+                txt_btn = btn_font.render(next_label, True, (255, 255, 255))
+                self.canvas.blit(txt_btn, (self.btn_next_act.x + self.btn_next_act.w // 2 - txt_btn.get_width() // 2,
+                                           self.btn_next_act.y + 12))
+
+        # 6c. Archmage Tip Overlay
+        if self.active_tip:
+            map_w = MAP_COLS * TILE_SIZE
+            map_h = MAP_ROWS * TILE_SIZE
+            # Semi-transparent backdrop
+            overlay = pygame.Surface((map_w, map_h), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 160))
+            self.canvas.blit(overlay, (0, 0))
+            # Tip box
+            box_w, box_h = 700, 220
+            box_x = map_w // 2 - box_w // 2
+            box_y = map_h // 2 - box_h // 2
+            tip_font_title = pygame.font.SysFont("dejavusans", 30, bold=True)
+            tip_font_body = pygame.font.SysFont("dejavusansmono", 21, bold=False)
+            tip_font_hint = pygame.font.SysFont("dejavusans", 18, bold=False)
+            # Box background with gold border
+            pygame.draw.rect(self.canvas, (28, 25, 40), (box_x, box_y, box_w, box_h), border_radius=16)
+            pygame.draw.rect(self.canvas, (210, 175, 65), (box_x, box_y, box_w, box_h), 3, border_radius=16)
+            # Title
+            title_surf = tip_font_title.render(self.active_tip["title"], True, (250, 215, 75))
+            self.canvas.blit(title_surf, (box_x + box_w // 2 - title_surf.get_width() // 2, box_y + 16))
+            # Body lines
+            for i, line in enumerate(self.active_tip.get("lines", [])):
+                col = (200, 230, 255) if i % 2 == 0 else (180, 255, 190)
+                self.canvas.blit(tip_font_body.render(line, True, col), (box_x + 30, box_y + 60 + i * 32))
+            # Dismiss hint
+            dismiss = tip_font_hint.render("Press any key to continue...", True, (150, 150, 170))
+            self.canvas.blit(dismiss, (box_x + box_w // 2 - dismiss.get_width() // 2, box_y + box_h - 34))
 
         # 7. Right Sidebar
         sx = MAP_COLS * TILE_SIZE
@@ -873,7 +2007,11 @@ class HeroesGameEngine:
         pygame.draw.rect(self.canvas, (48, 42, 34), (sx + 20, scroll_y, SIDEBAR_WIDTH - 40, scroll_h), border_radius=12)
         pygame.draw.rect(self.canvas, (205, 170, 90), (sx + 20, scroll_y, SIDEBAR_WIDTH - 40, scroll_h), 3, border_radius=12)
 
-        if self.victory:
+        if self.current_act == "act3":
+            scroll = self._build_act3_sidebar_scroll()
+        elif self.current_act == "act2":
+            scroll = self._build_act2_sidebar_scroll()
+        elif self.victory:
             scroll = [
                 ("*** VICTORY! ***", (255, 215, 0)),
                 ("", (0,0,0)),
@@ -887,9 +2025,7 @@ class HeroesGameEngine:
                 ("  * Coordinates (x, y grid system)", (165, 250, 175)),
                 ("  * CSV Databases (map_objects.csv)", (165, 250, 175)),
                 ("", (0,0,0)),
-                ("Click [Reset Map] to play again,", (255, 190, 125)),
-                ("or edit the CSV files to make", (255, 190, 125)),
-                ("your OWN adventure map!", (255, 190, 125)),
+                ("Click [Continue to Act II] above!", (255, 190, 125)),
             ]
         elif self.quest_stage == 1:
             scroll = [
@@ -969,28 +2105,95 @@ class HeroesGameEngine:
         else:
             self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, 825))
 
-        # 8. Bottom Control Bar
+        # 8. Bottom Spell Console Bar
         by = MAP_ROWS * TILE_SIZE
-        pygame.draw.rect(self.canvas, (26, 29, 38), (0, by, sx, BOTTOM_BAR_HEIGHT))
-        pygame.draw.line(self.canvas, (95, 105, 135), (0, by), (sx, by), 3)
+        console_w = sx - 300  # Reserve 300px on the right for buttons
+        btn_col_x = sx - 280  # Button column start
 
-        self.canvas.blit(self.font_lg.render(self.status_msg, True, self.status_color), (26, by + 18))
+        # Background
+        pygame.draw.rect(self.canvas, (18, 20, 28), (0, by, sx, BOTTOM_BAR_HEIGHT))
+        pygame.draw.line(self.canvas, (70, 85, 120), (0, by), (sx, by), 3)
 
-        self.btn_preview = pygame.Rect(26, by + 72, 270, 64)
-        self.btn_commit = pygame.Rect(316, by + 72, 290, 64)
-        self.btn_grid = pygame.Rect(626, by + 72, 250, 64)
-        self.btn_reset = pygame.Rect(896, by + 72, 220, 64)
+        # ── Status message bar (top strip) ──
+        pygame.draw.rect(self.canvas, (30, 34, 46), (0, by + 2, console_w, 30))
+        self.canvas.blit(self.font_sm.render(self.status_msg, True, self.status_color), (12, by + 7))
 
-        pygame.draw.rect(self.canvas, (55, 130, 205), self.btn_preview, border_radius=10)
+        # ── Console output log (scrollable area) ──
+        log_y = by + 34
+        log_h = 170  # Height for output lines
+        pygame.draw.rect(self.canvas, (12, 14, 22), (4, log_y, console_w - 8, log_h), border_radius=6)
+
+        # Show last N lines that fit
+        line_h = 22
+        max_visible = log_h // line_h
+        visible_lines = self.console_output[-max_visible:] if self.console_output else []
+        for i, (text, color) in enumerate(visible_lines):
+            # Truncate long lines to fit
+            display_text = text[:85] if len(text) > 85 else text
+            self.canvas.blit(self.font_console.render(display_text, True, color), (14, log_y + 4 + i * line_h))
+
+        # ── Console input line (bottom) ──
+        input_y = by + 34 + log_h + 6
+        input_h = 32
+        # Subtle glow effect on the input box
+        self.console_cursor_blink += 1
+        glow = int(abs(math.sin(self.console_cursor_blink * 0.06)) * 30)
+        border_col = (55 + glow, 100 + glow, 180 + min(glow, 40))
+        pygame.draw.rect(self.canvas, (22, 26, 36), (4, input_y, console_w - 8, input_h), border_radius=6)
+        pygame.draw.rect(self.canvas, border_col, (4, input_y, console_w - 8, input_h), 2, border_radius=6)
+
+        # Prompt and text
+        prompt = "... " if self.console_in_block else ">>> "
+        prompt_color = (100, 180, 255) if not self.console_in_block else (180, 140, 255)
+        self.canvas.blit(self.font_console_bold.render(prompt, True, prompt_color), (12, input_y + 5))
+        prompt_w = self.font_console_bold.size(prompt)[0]
+
+        # Input text (scroll if too long)
+        display_input = self.console_input
+        max_input_w = console_w - 40 - prompt_w
+        while self.font_console.size(display_input)[0] > max_input_w and len(display_input) > 1:
+            display_input = display_input[1:]
+        self.canvas.blit(self.font_console.render(display_input, True, (230, 240, 255)), (12 + prompt_w, input_y + 5))
+
+        # Blinking cursor
+        if (self.console_cursor_blink // 20) % 2 == 0:
+            cursor_x = 12 + prompt_w + self.font_console.size(display_input)[0] + 2
+            pygame.draw.rect(self.canvas, (120, 200, 255), (cursor_x, input_y + 5, 2, 20))
+
+        # ── Spell count badge ──
+        n_spells = len(self.console_commands)
+        badge_text = f"{n_spells} spell{'s' if n_spells != 1 else ''} queued"
+        badge_color = (110, 245, 145) if n_spells > 0 else (120, 120, 140)
+        self.canvas.blit(self.font_sm.render(badge_text, True, badge_color), (console_w - 180, input_y + 8))
+
+        # ── Right-side button column ──
+        btn_w = 260
+        btn_h = 50
+
         can_commit = self.preview_data and self.preview_data["valid"]
-        pygame.draw.rect(self.canvas, (45, 175, 90) if can_commit else (75, 80, 92), self.btn_commit, border_radius=10)
-        pygame.draw.rect(self.canvas, (100, 88, 155), self.btn_grid, border_radius=10)
-        pygame.draw.rect(self.canvas, (175, 68, 68), self.btn_reset, border_radius=10)
+        self.btn_commit = pygame.Rect(btn_col_x, by + 10, btn_w, btn_h)
+        self.btn_grid = pygame.Rect(btn_col_x, by + 68, btn_w, btn_h)
+        self.btn_reset = pygame.Rect(btn_col_x, by + 126, btn_w, btn_h)
+        self.btn_preview = pygame.Rect(btn_col_x, by + 184, btn_w, btn_h)
 
-        self.canvas.blit(self.font_md.render("Preview (Ctrl+S)", True, (255, 255, 255)), (self.btn_preview.x + 28, self.btn_preview.y + 16))
-        self.canvas.blit(self.font_md.render("COMMIT TURN", True, (255, 255, 255)), (self.btn_commit.x + 48, self.btn_commit.y + 16))
-        self.canvas.blit(self.font_md.render("Toggle Grid", True, (255, 255, 255)), (self.btn_grid.x + 42, self.btn_grid.y + 16))
-        self.canvas.blit(self.font_md.render("Reset Map", True, (255, 255, 255)), (self.btn_reset.x + 36, self.btn_reset.y + 16))
+        # Commit button (most prominent)
+        commit_col = (45, 175, 90) if can_commit else (55, 60, 70)
+        pygame.draw.rect(self.canvas, commit_col, self.btn_commit, border_radius=10)
+        self.canvas.blit(self.font_md.render("⚔ COMMIT TURN", True, (255, 255, 255)), (self.btn_commit.x + 36, self.btn_commit.y + 12))
+
+        # Grid toggle
+        grid_col = (80, 70, 140) if self.show_grid else (55, 50, 85)
+        pygame.draw.rect(self.canvas, grid_col, self.btn_grid, border_radius=10)
+        grid_label = "▦ Grid: ON" if self.show_grid else "▦ Grid: OFF"
+        self.canvas.blit(self.font_md.render(grid_label, True, (220, 220, 240)), (self.btn_grid.x + 60, self.btn_grid.y + 12))
+
+        # Reset button
+        pygame.draw.rect(self.canvas, (140, 50, 50), self.btn_reset, border_radius=10)
+        self.canvas.blit(self.font_md.render("↺ Reset Map", True, (255, 200, 200)), (self.btn_reset.x + 52, self.btn_reset.y + 12))
+
+        # Preview button (least prominent, since console auto-previews)
+        pygame.draw.rect(self.canvas, (45, 85, 130), self.btn_preview, border_radius=10)
+        self.canvas.blit(self.font_md.render("⟐ Reload my_hero.py", True, (180, 210, 255)), (self.btn_preview.x + 16, self.btn_preview.y + 12))
 
         # Scale canvas to window with aspect-ratio-preserving fit
         ww, wh = self.window.get_size()
@@ -1012,20 +2215,32 @@ class HeroesGameEngine:
 
     def run(self):
         running = True
+        # Enable key repeat for smooth typing (delay 400ms, repeat every 35ms)
+        pygame.key.set_repeat(400, 35)
         while running:
             self.tick += 1
-            # Auto-reload when my_hero.py is saved in Thonny!
-            my_hero_file = os.path.join(PROJECT_DIR, "my_hero.py")
-            if os.path.exists(my_hero_file):
-                mtime = os.path.getmtime(my_hero_file)
-                if mtime != self.last_mtime:
-                    self.last_mtime = mtime
-                    self.run_preview()
+            # Auto-reload when my_hero.py is saved (only if console is empty)
+            if not self.console_commands:
+                my_hero_file = os.path.join(PROJECT_DIR, "my_hero.py")
+                if os.path.exists(my_hero_file):
+                    mtime = os.path.getmtime(my_hero_file)
+                    if mtime != self.last_mtime:
+                        self.last_mtime = mtime
+                        self.run_preview()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
+                # ── Archmage Tip dismissal (intercepts all input while showing) ──
+                elif self.active_tip and (event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN):
+                    self.active_tip = None
+                    continue  # Don't process this event further
+
                 elif event.type == pygame.KEYDOWN:
+                    mods = pygame.key.get_mods()
+
+                    # ── Global shortcuts (always available) ──
                     if event.key == pygame.K_F11:
                         self.fullscreen = not self.fullscreen
                         if self.fullscreen:
@@ -1038,17 +2253,131 @@ class HeroesGameEngine:
                                 (int(info.current_w * 0.85), int(info.current_h * 0.85)),
                                 pygame.RESIZABLE
                             )
-                    elif event.key == pygame.K_r:
-                        self.reset_game(clear_save=True)
-                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                        self.commit_turn()
-                    elif event.key == pygame.K_g:
-                        self.show_grid = not self.show_grid
-                    elif event.key == pygame.K_p:
+                    elif event.key == pygame.K_F5:
+                        # F5 = force reload my_hero.py
+                        self.console_commands.clear()
+                        self.last_mtime = 0
                         self.run_preview()
+
+                    # ── Ctrl shortcuts ──
+                    elif mods & pygame.KMOD_CTRL:
+                        if event.key == pygame.K_RETURN:
+                            # Ctrl+Enter = commit turn
+                            self.commit_turn()
+                        elif event.key == pygame.K_r:
+                            self.reset_game(clear_save=True)
+                        elif event.key == pygame.K_g:
+                            self.show_grid = not self.show_grid
+                        elif event.key == pygame.K_l:
+                            # Ctrl+L = clear console output
+                            self.console_output.clear()
+                        elif event.key == pygame.K_z:
+                            # Ctrl+Z = undo last command
+                            self.execute_console_command("undo")
+
+                    # ── Console typing ──
+                    elif event.key == pygame.K_RETURN:
+                        line = self.console_input.strip()
+                        if self.console_in_block:
+                            if line == "":
+                                # Empty line ends the block
+                                full_block = self.console_multiline
+                                self.console_in_block = False
+                                self.console_multiline = ""
+                                self.console_input = ""
+                                self.execute_console_command(full_block)
+                            else:
+                                # Append to block
+                                self.console_multiline += "\n" + self.console_input
+                                self.console_add_output(f"... {self.console_input}", (150, 140, 200))
+                                # Auto-indent next line (keep same indent level)
+                                indent = len(self.console_input) - len(self.console_input.lstrip())
+                                self.console_input = " " * max(indent, 4)
+                        else:
+                            if line.endswith(":"):
+                                # Start a multi-line block (for, if, while, def)
+                                self.console_in_block = True
+                                self.console_multiline = self.console_input
+                                self.console_add_output(f">>> {self.console_input}", (130, 200, 130))
+                                self.console_add_output("    (type indented lines, blank Enter to finish)", (120, 120, 160))
+                                self.console_input = "    "  # Auto-indent!
+                            else:
+                                # Single-line command
+                                cmd = self.console_input
+                                self.console_input = ""
+                                if cmd.strip():
+                                    self.console_history.append(cmd.strip())
+                                    self.console_history_idx = -1
+                                    self.execute_console_command(cmd)
+
+                    elif event.key == pygame.K_BACKSPACE:
+                        if self.console_input:
+                            self.console_input = self.console_input[:-1]
+
+                    elif event.key == pygame.K_ESCAPE:
+                        if self.console_in_block:
+                            # Cancel multi-line block
+                            self.console_in_block = False
+                            self.console_multiline = ""
+                            self.console_input = ""
+                            self.console_add_output("(block cancelled)", (180, 180, 180))
+                        else:
+                            self.console_input = ""
+
+                    elif event.key == pygame.K_UP:
+                        # Navigate command history
+                        if self.console_history:
+                            if self.console_history_idx == -1:
+                                self.console_history_idx = len(self.console_history) - 1
+                            elif self.console_history_idx > 0:
+                                self.console_history_idx -= 1
+                            self.console_input = self.console_history[self.console_history_idx]
+
+                    elif event.key == pygame.K_DOWN:
+                        if self.console_history_idx >= 0:
+                            self.console_history_idx += 1
+                            if self.console_history_idx >= len(self.console_history):
+                                self.console_history_idx = -1
+                                self.console_input = ""
+                            else:
+                                self.console_input = self.console_history[self.console_history_idx]
+
+                    elif event.key == pygame.K_TAB:
+                        # Simple tab-completion for commands
+                        partial = self.console_input.lstrip()
+                        completions = [
+                            "move_right(", "move_left(", "move_up(", "move_down(",
+                            "move_to(", "move_by(", "terraform(",
+                            "say(", "scout(", "read_sign(", "answer_sphinx(",
+                            "recruit(", "open_gate(", "type(",
+                            "today(", "look(", "has_key(", "set_lever(",
+                            "attack(", "move_toward(", "defend(",
+                            "for ", "if ", "elif ", "else:", "range(",
+                            "print(", "int(", "float(", "str(",
+                            "True", "False", "and ", "or ", "not ",
+                            "clear", "undo", "help", "list",
+                        ]
+                        matches = [c for c in completions if c.startswith(partial)]
+                        if len(matches) == 1:
+                            # Preserve leading whitespace
+                            leading = len(self.console_input) - len(self.console_input.lstrip())
+                            self.console_input = " " * leading + matches[0]
+                        elif len(matches) > 1:
+                            self.console_add_output("  ".join(matches), (180, 220, 255))
+
+                    elif event.unicode and event.unicode.isprintable():
+                        self.console_input += event.unicode
+
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     vpos = self.window_to_virtual(event.pos)
-                    if self.btn_preview.collidepoint(vpos):
+                    # "Continue to Act II" button on victory overlay
+                    if self.btn_next_act and self.btn_next_act.collidepoint(vpos):
+                        next_act = self.scenario.get("next_scenario") if self.scenario else None
+                        if next_act:
+                            self.start_act(next_act)
+                    elif self.btn_preview.collidepoint(vpos):
+                        self.console_commands.clear()
+                        self.last_mtime = 0
                         self.run_preview()
                     elif self.btn_commit.collidepoint(vpos):
                         self.commit_turn()
