@@ -2052,7 +2052,8 @@ class HeroesGameEngine:
     # ------------------------------------------------------------------------
     def draw(self):
         self.canvas.fill((22, 24, 32))
-        mx, my = self.window_to_virtual(pygame.mouse.get_pos())
+        mouse_x, mouse_y = self.window_to_virtual(pygame.mouse.get_pos())
+        sx = MAP_COLS * TILE_SIZE
 
         # Display grid = real map + previewed terraforms, so auto-tiling (roads, bridges,
         # shorelines) already looks right while the player is still planning.
@@ -2070,27 +2071,27 @@ class HeroesGameEngine:
 
                 # Coordinate labels (when grid is toggled on)
                 if self.show_grid:
-                    mx, my = self.grid_to_math(c, r)
+                    math_x, math_y = self.grid_to_math(c, r)
                     # Subtle semi-transparent grid line instead of solid black
                     grid_overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                     pygame.draw.rect(grid_overlay, (255, 255, 255, 30), (0, 0, TILE_SIZE, TILE_SIZE), 1)
 
                     # Axis markings (X-Axis: y=0, Y-Axis: x=0)
-                    if my == 0:  # X-Axis
+                    if math_y == 0:  # X-Axis
                         pygame.draw.line(grid_overlay, (255, 220, 90, 140), (0, TILE_SIZE - 2), (TILE_SIZE, TILE_SIZE - 2), 2)
-                    if mx == 0:  # Y-Axis
+                    if math_x == 0:  # Y-Axis
                         pygame.draw.line(grid_overlay, (255, 220, 90, 140), (1, 0), (1, TILE_SIZE), 2)
 
                     self.canvas.blit(grid_overlay, (px, py))
 
                     # Origin marker (0, 0)
-                    if (mx, my) == (0, 0):
+                    if (math_x, math_y) == (0, 0):
                         pygame.draw.rect(self.canvas, (255, 215, 0), (px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2), 2, border_radius=4)
                         lbl_shadow = self.font_coord.render("0,0 ★", True, (0, 0, 0))
                         lbl = self.font_coord.render("0,0 ★", True, (255, 235, 110))
                     else:
-                        lbl_shadow = self.font_coord.render(f"{mx},{my}", True, (0, 0, 0))
-                        lbl = self.font_coord.render(f"{mx},{my}", True, (240, 245, 235))
+                        lbl_shadow = self.font_coord.render(f"{math_x},{math_y}", True, (0, 0, 0))
+                        lbl = self.font_coord.render(f"{math_x},{math_y}", True, (240, 245, 235))
                     self.canvas.blit(lbl_shadow, (px + 6, py + 4))
                     self.canvas.blit(lbl, (px + 5, py + 3))
 
@@ -2134,6 +2135,20 @@ class HeroesGameEngine:
 
         # 5. Draw Active Hero (solid, not ghost)
         self.art.draw_hero(self.canvas, self.hero_col * TILE_SIZE, self.hero_row * TILE_SIZE, self.tick)
+
+        # 5b. Map Tile Hover Cursor (glowing frame on hovered tile)
+        if 0 <= mouse_x < sx and 0 <= mouse_y < MAP_ROWS * TILE_SIZE:
+            hover_hc = mouse_x // TILE_SIZE
+            hover_hr = mouse_y // TILE_SIZE
+            if 0 <= hover_hc < MAP_COLS and 0 <= hover_hr < MAP_ROWS:
+                hpx, hpy = hover_hc * TILE_SIZE, hover_hr * TILE_SIZE
+                hover_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+                hover_pulse = int(abs(math.sin(self.tick * 0.12)) * 30)
+                # Soft translucent background
+                pygame.draw.rect(hover_surf, (255, 235, 120, 32 + hover_pulse // 3), (0, 0, TILE_SIZE, TILE_SIZE), border_radius=6)
+                # Luminous golden border
+                pygame.draw.rect(hover_surf, (255, 225 + hover_pulse, 85, 220), (1, 1, TILE_SIZE - 2, TILE_SIZE - 2), 3, border_radius=6)
+                self.canvas.blit(hover_surf, (hpx, hpy))
 
         # 6. Floating Text Animations
         for ft in self.floating_texts[:]:
@@ -2322,11 +2337,13 @@ class HeroesGameEngine:
             self.canvas.blit(self.font_sm.render(txt, True, col), (sx + 36, scroll_y + 18 + i * 26))
 
         # Tile Inspector — expanded with word-wrap for long descriptions
-        inspector_h = 140
-        pygame.draw.rect(self.canvas, (42, 47, 64), (sx + 20, 784, SIDEBAR_WIDTH - 40, inspector_h), border_radius=12)
+        inspector_y = 776
+        inspector_h = 280
+        pygame.draw.rect(self.canvas, (42, 47, 64), (sx + 20, inspector_y, SIDEBAR_WIDTH - 40, inspector_h), border_radius=12)
+        pygame.draw.rect(self.canvas, (75, 88, 120), (sx + 20, inspector_y, SIDEBAR_WIDTH - 40, inspector_h), 2, border_radius=12)
         inspector_max_w = SIDEBAR_WIDTH - 80  # Max text width inside the card
-        if 0 <= mx < sx and 0 <= my < MAP_ROWS * TILE_SIZE:
-            hc, hr = mx // TILE_SIZE, my // TILE_SIZE
+        if 0 <= mouse_x < sx and 0 <= mouse_y < MAP_ROWS * TILE_SIZE:
+            hc, hr = mouse_x // TILE_SIZE, mouse_y // TILE_SIZE
             if 0 <= hc < MAP_COLS and 0 <= hr < MAP_ROWS:
                 tx, ty = self.grid_to_math(hc, hr)
                 dx, dy = tx - self.hero_x, ty - self.hero_y
@@ -2334,16 +2351,17 @@ class HeroesGameEngine:
                 obj = self.get_object_at(hc, hr)
                 # Tile name (with wrapping)
                 origin_suffix = " ★ [ORIGIN]" if (tx, ty) == (0, 0) else ""
-                tile_text = f"Tile ({tx}, {ty}){origin_suffix} -- {TERRAIN_NAMES.get(tcode, tcode)}"
+                hero_suffix = " ⚔ [HERO]" if (hc, hr) == (self.hero_col, self.hero_row) else ""
+                tile_text = f"Tile ({tx}, {ty}){origin_suffix}{hero_suffix} -- {TERRAIN_NAMES.get(tcode, tcode)}"
                 tile_lines = self._wrap_text(tile_text, self.font_md, inspector_max_w)
-                cur_y = 792
+                cur_y = inspector_y + 12
                 for tl in tile_lines:
                     self.canvas.blit(self.font_md.render(tl, True, (225, 240, 255)), (sx + 32, cur_y))
-                    cur_y += 24
+                    cur_y += 26
                 self.canvas.blit(self.font_sm.render(f"Absolute: move_to({tx}, {ty})", True, (150, 250, 175)), (sx + 32, cur_y))
-                cur_y += 22
-                self.canvas.blit(self.font_sm.render(f"Relative: move_by({dx}, {dy})", True, (150, 250, 175)), (sx + 32, cur_y))
                 cur_y += 24
+                self.canvas.blit(self.font_sm.render(f"Relative: move_by({dx}, {dy})", True, (150, 250, 175)), (sx + 32, cur_y))
+                cur_y += 26
                 if obj:
                     is_read = obj["Type"] == "Sign" and obj.get("Read", False)
                     prefix = "✓ [READ] " if is_read else "* "
@@ -2351,13 +2369,13 @@ class HeroesGameEngine:
                     obj_text = f"{prefix}{obj['Name']}: {obj['Description']}"
                     obj_lines = self._wrap_text(obj_text, self.font_sm, inspector_max_w)
                     for ol in obj_lines:
-                        if cur_y < 784 + inspector_h - 6:  # Don't overflow the box
+                        if cur_y < inspector_y + inspector_h - 10:  # Don't overflow the box
                             self.canvas.blit(self.font_sm.render(ol, True, color), (sx + 32, cur_y))
                             cur_y += 22
             else:
-                self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, 825))
+                self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, inspector_y + 45))
         else:
-            self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, 825))
+            self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, inspector_y + 45))
 
         # 8. Bottom Spell Console Bar
         by = MAP_ROWS * TILE_SIZE

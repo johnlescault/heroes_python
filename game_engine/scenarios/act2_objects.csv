@@ -9,7 +9,7 @@ ID,Type,Name,X,Y,Value,Guard_Power,Description
 8,Sign,Scout Hint,0,3,0,0,The Merchant wanders! Use x y = scout(Merchant) to find him.
 9,NPC,Wandering Merchant,2,3,500,0,A travelling merchant with 500 gold in rare goods!
 10,Guard,Variable Gate,6,2,0,0,Store the merchants location in a variable to pass!
-11,Sign,Sphinx Riddle 1,6,1,0,0,Give me a number with a DECIMAL POINT in it.
+11,Sign,Sphinx Riddle 1,7,1,0,0,Give me a number with a DECIMAL POINT in it.
 12,Sign,Sphinx Riddle 2,6,0,0,0,Give me a piece of TEXT -- a word in quotes.
 13,Sign,Sphinx Riddle 3,5,0,0,0,Give me something TRUE or FALSE.
 14,Sphinx,The Stone Sphinx,6,1,0,0,Answer my 3 riddles with the correct TYPES to pass!
