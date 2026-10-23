@@ -214,7 +214,7 @@ class World:
         sx = 1 if dx > 0 else -1
         for _ in range(abs(dx)):
             self.step_to(self.hero["x"] + sx, self.hero["y"])
-        sy = 1 if dy > 0 else -1
+        sy = -1 if dy > 0 else 1
         for _ in range(abs(dy)):
             self.step_to(self.hero["x"], self.hero["y"] + sy)
 

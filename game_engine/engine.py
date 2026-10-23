@@ -51,15 +51,17 @@ def move_left(steps=1):
     _actions.append(("rel", -int(steps), 0))
 
 def move_down(steps=1):
-    """Move relative down by 'steps' tiles."""
-    _actions.append(("rel", 0, int(steps)))
-
-def move_up(steps=1):
-    """Move relative up by 'steps' tiles."""
+    """Move relative down by 'steps' tiles (negative Y)."""
     _actions.append(("rel", 0, -int(steps)))
 
+def move_up(steps=1):
+    """Move relative up by 'steps' tiles (positive Y)."""
+    _actions.append(("rel", 0, int(steps)))
+
 def move_by(dx, dy):
-    """Move relative to current position by (dx, dy) tiles."""
+    """Move relative to current position by (dx, dy) tiles.
+    Positive dx is right, negative dx is left.
+    Positive dy is up, negative dy is down."""
     _actions.append(("rel", int(dx), int(dy)))
 
 def move_to(x, y):
@@ -414,6 +416,113 @@ class HDArtRenderer:
                 pygame.draw.circle(screen, (255, 240, 90), (cx-6, cy-4+bob), 4)
                 pygame.draw.circle(screen, (255, 240, 90), (cx+6, cy-4+bob), 4)
 
+        elif otype == "Sign":
+            is_read = obj.get("Read", False)
+            sp = self._get_scaled_sprite("sign", (s-12, s-12))
+            if sp:
+                screen.blit(sp, (px+6, py+6))
+            else:
+                # Wooden signpost
+                post_c = (105, 68, 32)
+                plank_c = (160, 115, 58)
+                # Post
+                pygame.draw.rect(screen, post_c, (cx-3, cy-4, 6, s//2+4), border_radius=2)
+                # Plank
+                pygame.draw.rect(screen, plank_c, (px+12, py+12, s-24, 24), border_radius=5)
+                pygame.draw.rect(screen, (130, 90, 42), (px+12, py+12, s-24, 24), 2, border_radius=5)
+                # Wood grain lines
+                pygame.draw.line(screen, (140, 100, 48), (px+16, py+18), (px+s-16, py+18), 1)
+                pygame.draw.line(screen, (140, 100, 48), (px+16, py+28), (px+s-16, py+28), 1)
+                if not is_read:
+                    # "?" text when unread
+                    pygame.draw.circle(screen, (245, 225, 95), (cx, py+22), 7)
+                    pygame.draw.circle(screen, plank_c, (cx, py+22), 5)
+                    pygame.draw.rect(screen, (245, 225, 95), (cx-1, py+19, 3, 6))
+
+            # If the sign has been read, draw a clean checkmark badge in the top-right corner
+            if is_read:
+                bx, by = px + s - 14, py + 12
+                # Outer dark ring
+                pygame.draw.circle(screen, (15, 35, 20), (bx, by), 9)
+                # Green badge body
+                pygame.draw.circle(screen, (45, 195, 85), (bx, by), 7)
+                # White checkmark ✓
+                pygame.draw.lines(screen, (255, 255, 255), False, [
+                    (bx - 4, by), (bx - 1, by + 3), (bx + 4, by - 3)
+                ], 2)
+
+        elif otype == "NPC":
+            sp = self._get_scaled_sprite("npc", (s-10, s-10))
+            if sp:
+                screen.blit(sp, (px+5, py+5+bob))
+            else:
+                # Hooded figure
+                robe_c = (65, 85, 145)
+                # Body robe
+                pygame.draw.polygon(screen, robe_c, [
+                    (cx-14, py+s-16), (cx-10, py+22+bob),
+                    (cx+10, py+22+bob), (cx+14, py+s-16)
+                ])
+                # Hood
+                pygame.draw.circle(screen, robe_c, (cx, py+20+bob), 13)
+                # Face
+                pygame.draw.circle(screen, (215, 185, 155), (cx, py+20+bob), 9)
+                # Eyes
+                pygame.draw.circle(screen, (40, 40, 50), (cx-3, py+19+bob), 2)
+                pygame.draw.circle(screen, (40, 40, 50), (cx+3, py+19+bob), 2)
+                # Belt
+                pygame.draw.rect(screen, (180, 145, 60), (cx-10, py+36+bob, 20, 3), border_radius=1)
+
+        elif otype == "Sphinx":
+            sp = self._get_scaled_sprite("sphinx", (s-8, s-8))
+            if sp:
+                screen.blit(sp, (px+4, py+4+bob))
+            else:
+                # Golden sphinx - cat body with human-ish face
+                gold = (225, 185, 65)
+                dark_gold = (175, 135, 35)
+                # Body
+                pygame.draw.ellipse(screen, gold, (px+10, cy+2+bob, s-20, 24))
+                # Front paws
+                pygame.draw.ellipse(screen, dark_gold, (px+14, cy+16+bob, 12, 10))
+                pygame.draw.ellipse(screen, dark_gold, (px+s-26, cy+16+bob, 12, 10))
+                # Head
+                pygame.draw.circle(screen, gold, (cx, py+22+bob), 14)
+                # Headdress (Egyptian striped)
+                pygame.draw.polygon(screen, (45, 85, 165), [(cx-16, py+20+bob), (cx, py+6+bob), (cx+16, py+20+bob)])
+                pygame.draw.line(screen, (225, 195, 75), (cx-10, py+14+bob), (cx+10, py+14+bob), 2)
+                pygame.draw.line(screen, (225, 195, 75), (cx-13, py+18+bob), (cx+13, py+18+bob), 2)
+                # Eyes
+                pygame.draw.circle(screen, (180, 40, 40), (cx-5, py+22+bob), 3)
+                pygame.draw.circle(screen, (180, 40, 40), (cx+5, py+22+bob), 3)
+
+        elif otype == "Shrine":
+            sp = self._get_scaled_sprite("shrine", (s-8, s-8))
+            if sp:
+                screen.blit(sp, (px+4, py+4))
+            else:
+                # Glowing stone pillar with colored orbs (levers)
+                pillar_c = (95, 100, 115)
+                # Base
+                pygame.draw.rect(screen, (75, 78, 88), (px+14, cy+10, s-28, 18), border_radius=4)
+                # Pillar
+                pygame.draw.rect(screen, pillar_c, (px+18, py+12, s-36, s//2+6), border_radius=6)
+                pygame.draw.rect(screen, (120, 125, 140), (px+20, py+14, s-40, s//2+2), border_radius=4)
+                # Top stone cap
+                pygame.draw.rect(screen, (80, 85, 95), (px+14, py+10, s-28, 8), border_radius=3)
+                # Glowing orbs (red, blue, green = lever colors)
+                glow = int(math.sin(tick * 0.06) * 30)
+                orb_colors = [
+                    (min(255, 200 + glow), 60, 60),    # Red
+                    (60, 60, min(255, 200 + glow)),     # Blue
+                    (60, min(255, 200 + glow), 60),     # Green
+                ]
+                for i, col in enumerate(orb_colors):
+                    orb_x = px + 24 + i * 12
+                    orb_y = py + 26
+                    pygame.draw.circle(screen, col, (orb_x, orb_y), 5)
+                    pygame.draw.circle(screen, (255, 255, 255), (orb_x-1, orb_y-1), 2)
+
     def draw_hero(self, screen, px, py, tick):
         s = TILE_SIZE
         bob = int(math.sin(tick * 0.12) * 3)
@@ -438,6 +547,51 @@ class HDArtRenderer:
 # MAIN GAME ENGINE — Fully resizable, maximizable, 4K-ready
 # ============================================================================
 class HeroesGameEngine:
+    @staticmethod
+    def _wrap_text(text, font, max_width):
+        """Word-wrap text to fit within max_width pixels. Returns list of lines."""
+        if not text:
+            return [""]
+        words = text.split(" ")
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = f"{current_line} {word}".strip() if current_line else word
+            if font.size(test_line)[0] <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                # If single word is wider than max, force it on its own line
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+        return lines if lines else [""]
+
+    def math_to_grid(self, x: int, y: int) -> tuple[int, int]:
+        """Convert math coordinates (x, y) to grid coordinates (col, row)."""
+        return (int(self.origin_col + x), int(self.origin_row - y))
+
+    def grid_to_math(self, col: int, row: int) -> tuple[int, int]:
+        """Convert grid coordinates (col, row) to math coordinates (x, y)."""
+        return (int(col - self.origin_col), int(self.origin_row - row))
+
+    @property
+    def hero_x(self) -> int:
+        return self.hero_col - self.origin_col
+
+    @property
+    def hero_y(self) -> int:
+        return self.origin_row - self.hero_row
+
+    @hero_x.setter
+    def hero_x(self, val: int):
+        self.hero_col = self.origin_col + int(val)
+
+    @hero_y.setter
+    def hero_y(self, val: int):
+        self.hero_row = self.origin_row - int(val)
+
     def __init__(self):
         pygame.init()
         pygame.display.set_caption("Heroes of Python -- Adventure Map")
@@ -472,12 +626,16 @@ class HeroesGameEngine:
         self.floating_texts = []
         self.current_act = "act1"
         self.scenario = None
+        self.origin_col = 0
+        self.origin_row = 10
+        self.hero_col = 1
+        self.hero_row = 0
         self.load_scenario("act1")
         self.reset_game()
         # Welcome message for the Spell Console
         self.console_add_output("✦ Welcome to the Spell Console!", (250, 215, 75))
         self.console_add_output("  Type a spell and press Enter:", (180, 200, 220))
-        self.console_add_output("  move_right(3)   move_to(4, 1)", (165, 250, 175))
+        self.console_add_output("  move_right(3)   move_to(4, 9)", (165, 250, 175))
         self.console_add_output("  Type 'help' for all commands", (140, 180, 200))
         self.console_add_output("  Ctrl+Enter = commit your turn", (140, 180, 200))
         # Restore saved game if available
@@ -505,6 +663,8 @@ class HeroesGameEngine:
                 "current_act": self.current_act,
                 "hero_x": self.hero_x,
                 "hero_y": self.hero_y,
+                "hero_col": self.hero_col,
+                "hero_row": self.hero_row,
                 "gold": self.gold,
                 "wood": self.wood,
                 "dragons": self.dragons,
@@ -512,7 +672,8 @@ class HeroesGameEngine:
                 "quest_stage": self.quest_stage,
                 "victory": self.victory,
                 "grid": self.grid,
-                "collected_ids": [obj["ID"] for obj in self.objects if obj["Collected"]],
+                "collected_ids": [obj["ID"] for obj in self.objects if obj["Collected"] and obj["Type"] != "Sign"],
+                "read_sign_ids": [obj["ID"] for obj in self.objects if obj.get("Read", False)],
                 "shown_tips": list(self.shown_tips),
                 "completed_quests": list(self.completed_quests),
                 "hero_log": self.hero_log[-20:],
@@ -539,8 +700,17 @@ class HeroesGameEngine:
                 self.load_scenario(saved_act)
                 self.reset_game()
                 self.current_act = saved_act
-            self.hero_x = data.get("hero_x", 1)
-            self.hero_y = data.get("hero_y", 0)
+            else:
+                sc = self.scenario or {}
+                origin = sc.get("origin", [0, 10])
+                self.origin_col = origin[0]
+                self.origin_row = origin[1]
+            if "hero_col" in data and "hero_row" in data:
+                self.hero_col = data["hero_col"]
+                self.hero_row = data["hero_row"]
+            else:
+                self.hero_x = data.get("hero_x", 1)
+                self.hero_y = data.get("hero_y", 10)
             self.gold = data.get("gold", 0)
             self.wood = data.get("wood", 0)
             self.dragons = data.get("dragons", 0)
@@ -550,8 +720,13 @@ class HeroesGameEngine:
             if "grid" in data:
                 self.grid = data["grid"]
             collected_ids = set(data.get("collected_ids", []))
+            read_sign_ids = set(data.get("read_sign_ids", []))
             for obj in self.objects:
-                if obj["ID"] in collected_ids:
+                if obj["Type"] == "Sign":
+                    if obj["ID"] in read_sign_ids or obj["ID"] in collected_ids:
+                        obj["Read"] = True
+                    obj["Collected"] = False  # Signs never disappear
+                elif obj["ID"] in collected_ids:
                     obj["Collected"] = True
             self.shown_tips = set(data.get("shown_tips", []))
             self.completed_quests = set(data.get("completed_quests", []))
@@ -575,12 +750,15 @@ class HeroesGameEngine:
                     pass
         # Load map and objects from scenario config
         sc = self.scenario or {}
+        origin = sc.get("origin", [0, 10])
+        self.origin_col = origin[0]
+        self.origin_row = origin[1]
         map_file = os.path.join(PROJECT_DIR, sc.get("map_file", "world_map.csv"))
         obj_file = os.path.join(PROJECT_DIR, sc.get("objects_file", "map_objects.csv"))
         self.grid = self._load_map(map_file)
         self.base_grid = self._load_map(map_file)
         self.objects = self._load_objects(obj_file)
-        start = sc.get("hero_start", [1, 0])
+        start = sc.get("hero_start", [1, 10])
         self.hero_x = start[0]
         self.hero_y = start[1]
         self.gold = sc.get("starting_gold", 0)
@@ -631,6 +809,8 @@ class HeroesGameEngine:
         self.btn_grid = pygame.Rect(0, 0, 0, 0)
         self.btn_reset = pygame.Rect(0, 0, 0, 0)
         self.btn_next_act = None
+        self._populate_scout_and_sign_data()
+        self._populate_act3_data()
 
     # ── Campaign / Scenario system ──
     def load_scenario(self, scenario_id: str):
@@ -643,6 +823,10 @@ class HeroesGameEngine:
         else:
             self.scenario = None
             self.current_act = scenario_id
+        sc = self.scenario or {}
+        origin = sc.get("origin", [0, 10])
+        self.origin_col = origin[0]
+        self.origin_row = origin[1]
 
     def start_act(self, act_id: str):
         """Transition to a new act (called when beating the current act's boss)."""
@@ -860,9 +1044,10 @@ class HeroesGameEngine:
         return None
 
     def _api_read_sign(self, x: int, y: int) -> str:
-        """Read a sign's text at (x, y)."""
+        """Read a sign's text at (x, y). Marks the sign as read."""
         for obj in self.objects:
-            if obj["X"] == int(x) and obj["Y"] == int(y) and obj["Type"] == "Sign" and not obj["Collected"]:
+            if obj["X"] == int(x) and obj["Y"] == int(y) and obj["Type"] == "Sign":
+                obj["Read"] = True
                 return obj["Description"]
         return ""
 
@@ -887,8 +1072,8 @@ class HeroesGameEngine:
                 text = str(act[1])
                 self.hero_log.append(text)
                 # Add floating speech bubble
-                px = self.hero_x * TILE_SIZE + 8
-                py = self.hero_y * TILE_SIZE - 20
+                px = self.hero_col * TILE_SIZE + 8
+                py = self.hero_row * TILE_SIZE - 20
                 self.floating_texts.append([f'💬 {text}', px, py, 90, (255, 255, 220)])
 
     def _handle_sphinx_answers(self):
@@ -926,7 +1111,7 @@ class HeroesGameEngine:
         hero_api._scout_results = {}
         hero_api._sign_results = {}
         for obj in self.objects:
-            if not obj["Collected"]:
+            if not obj["Collected"] or obj["Type"] == "Sign":
                 hero_api._scout_results[obj["Name"]] = (obj["X"], obj["Y"])
                 if obj["Type"] == "Sign":
                     hero_api._sign_results[(obj["X"], obj["Y"])] = obj["Description"]
@@ -947,7 +1132,8 @@ class HeroesGameEngine:
         if hasattr(self, "grid") and self.grid:
             for r in range(len(self.grid)):
                 for c in range(len(self.grid[0])):
-                    hero_api._look_results[(c, r)] = self.grid[r][c]
+                    mx, my = self.grid_to_math(c, r)
+                    hero_api._look_results[(mx, my)] = self.grid[r][c]
         # Objects override terrain
         for obj in self.objects:
             if not obj["Collected"]:
@@ -969,7 +1155,7 @@ class HeroesGameEngine:
                     obj["Collected"] = True
                     self.shrine_solved = True
                     self.console_add_output(f"✓ Shrine solved! Rule: {expr} = True!", (110, 255, 130))
-                    px, py = obj["X"] * TILE_SIZE + 8, obj["Y"] * TILE_SIZE
+                    px, py = obj.get("col", obj["X"]) * TILE_SIZE + 8, obj.get("row", obj["Y"]) * TILE_SIZE
                     self.floating_texts.append(["✦ Shrine Solved!", px, py, 80, (200, 180, 255)])
 
     def _eval_shrine(self, expression: str, levers: dict) -> bool:
@@ -1219,24 +1405,36 @@ class HeroesGameEngine:
         objs = []
         with open(filename, "r", encoding="utf-8") as f:
             for row in csv.DictReader(f):
+                math_x = int(row["X"])
+                math_y = int(row["Y"])
+                col, row_idx = self.math_to_grid(math_x, math_y)
                 objs.append({
                     "ID": int(row["ID"]),
                     "Type": row["Type"].strip(),
                     "Name": row["Name"].strip(),
-                    "X": int(row["X"]),
-                    "Y": int(row["Y"]),
-                    "Value": int(row["Value"]),
-                    "Guard_Power": int(row["Guard_Power"]),
-                    "Description": row["Description"].strip(),
-                    "Collected": False
+                    "X": math_x,
+                    "Y": math_y,
+                    "col": col,
+                    "row": row_idx,
+                    "Value": int(row.get("Value", 0)),
+                    "Guard_Power": int(row.get("Guard_Power", 0)),
+                    "Description": row.get("Description", "").strip(),
+                    "Collected": False if row["Type"].strip() == "Sign" else bool(int(row.get("Collected", 0))),
+                    "Read": False
                 })
         return objs
 
-    def get_object_at(self, x, y):
+    def get_object_at(self, col: int, row: int):
+        """Find an active object at grid tile (col, row)."""
         for obj in self.objects:
-            if obj["X"] == x and obj["Y"] == y and not obj["Collected"]:
+            if obj.get("col") == col and obj.get("row") == row and (not obj["Collected"] or obj["Type"] == "Sign"):
                 return obj
         return None
+
+    def get_object_at_math(self, x: int, y: int):
+        """Find an active object at math coordinates (x, y)."""
+        col, row = self.math_to_grid(x, y)
+        return self.get_object_at(col, row)
 
     # ------------------------------------------------------------------------
     # HYBRID (RELATIVE + ABSOLUTE) SIMULATION & PREVIEW ENGINE
@@ -1343,7 +1541,7 @@ class HeroesGameEngine:
             # Act II functions
             "say": hero_api.say,
             "scout": hero_api.scout,
-            "read_sign": hero_api.read_sign,
+            "read_sign": self._api_read_sign,
             "answer_sphinx": hero_api.answer_sphinx,
             "recruit": hero_api.recruit,
             "open_gate": hero_api.open_gate,
@@ -1482,7 +1680,7 @@ class HeroesGameEngine:
         hero_api._reset()
         sim: dict[str, Any] = {
             "valid": True,
-            "path": [(self.hero_x, self.hero_y, 0.0, True)],
+            "path": [(self.hero_col, self.hero_row, 0.0, True)],
             "terraforms": [],
             "expected_gold": self.gold,
             "expected_wood": self.wood,
@@ -1529,9 +1727,11 @@ class HeroesGameEngine:
             return
 
         hero_api._reset()
+        self._populate_scout_and_sign_data()
+        self._populate_act3_data()
         sim: dict[str, Any] = {
             "valid": True,
-            "path": [(self.hero_x, self.hero_y, 0.0, True)],
+            "path": [(self.hero_col, self.hero_row, 0.0, True)],
             "terraforms": [],
             "expected_gold": self.gold,
             "expected_wood": self.wood,
@@ -1561,7 +1761,7 @@ class HeroesGameEngine:
     def _simulate_path(self, sim: dict[str, Any]):
         """Shared simulation logic: process hero_api._actions into a path preview."""
         temp_grid = [r[:] for r in self.grid]
-        cx, cy = self.hero_x, self.hero_y
+        cur_col, cur_row = self.hero_col, self.hero_row
         mp = 0.0
 
         # Expand BOTH relative ('rel') and absolute ('abs') commands into steps
@@ -1569,69 +1769,73 @@ class HeroesGameEngine:
         for act in hero_api._actions:
             if act[0] == "terraform":
                 _, tx, ty, ttype = act
-                if 0 <= tx < MAP_COLS and 0 <= ty < MAP_ROWS:
-                    temp_grid[ty][tx] = ttype
-                    sim["terraforms"].append((tx, ty, ttype))
+                t_col, t_row = self.math_to_grid(tx, ty)
+                if 0 <= t_col < MAP_COLS and 0 <= t_row < MAP_ROWS:
+                    temp_grid[t_row][t_col] = ttype
+                    sim["terraforms"].append((t_col, t_row, ttype))
             elif act[0] == "rel":
                 _, dx, dy = act
-                sx = 1 if dx > 0 else (-1 if dx < 0 else 0)
+                col_step = 1 if dx > 0 else (-1 if dx < 0 else 0)
                 for _ in range(abs(dx)):
-                    cx += sx
-                    step_queue.append((cx, cy))
-                sy = 1 if dy > 0 else (-1 if dy < 0 else 0)
+                    cur_col += col_step
+                    step_queue.append((cur_col, cur_row))
+                row_step = -1 if dy > 0 else (1 if dy < 0 else 0)
                 for _ in range(abs(dy)):
-                    cy += sy
-                    step_queue.append((cx, cy))
+                    cur_row += row_step
+                    step_queue.append((cur_col, cur_row))
             elif act[0] == "abs":
                 _, tx, ty = act
-                while cx != tx:
-                    cx += 1 if cx < tx else -1
-                    step_queue.append((cx, cy))
-                while cy != ty:
-                    cy += 1 if cy < ty else -1
-                    step_queue.append((cx, cy))
+                target_col, target_row = self.math_to_grid(tx, ty)
+                while cur_col != target_col:
+                    cur_col += 1 if cur_col < target_col else -1
+                    step_queue.append((cur_col, cur_row))
+                while cur_row != target_row:
+                    cur_row += 1 if cur_row < target_row else -1
+                    step_queue.append((cur_col, cur_row))
 
-        cx, cy = self.hero_x, self.hero_y
+        cur_col, cur_row = self.hero_col, self.hero_row
 
         # Check if the hero begins the turn standing on an uncollected object (e.g. Dwelling)
-        init_obj = self.get_object_at(cx, cy)
+        init_obj = self.get_object_at(cur_col, cur_row)
         if init_obj and init_obj["ID"] not in sim["picked_ids"]:
-            if not self._interact_object(init_obj, sim, cx, cy, 0.0):
+            init_mx, init_my = self.grid_to_math(cur_col, cur_row)
+            if not self._interact_object(init_obj, sim, init_mx, init_my, 0.0):
                 self.preview_data = sim
                 self.status_msg = sim["error"]
                 self.status_color = (255, 110, 110)
                 return
 
-        for nx, ny in step_queue:
-            if not (0 <= nx < MAP_COLS and 0 <= ny < MAP_ROWS):
+        for ncol, nrow in step_queue:
+            mx, my = self.grid_to_math(ncol, nrow)
+            if not (0 <= ncol < MAP_COLS and 0 <= nrow < MAP_ROWS):
                 sim["valid"] = False
-                sim["error"] = f"Moved off the map edge at ({nx}, {ny})!"
-                sim["path"].append((nx, ny, mp, False))
+                sim["error"] = f"Moved off the map edge at ({mx}, {my})!"
+                sim["path"].append((ncol, nrow, mp, False))
                 break
 
-            tile = temp_grid[ny][nx]
+            tile = temp_grid[nrow][ncol]
             cost = TERRAIN_COSTS.get(tile, None)
             if cost is None:
                 sim["valid"] = False
-                sim["error"] = f"Blocked by {TERRAIN_NAMES.get(tile, tile)} at ({nx}, {ny})!"
-                sim["path"].append((nx, ny, mp, False))
+                sim["error"] = f"Blocked by {TERRAIN_NAMES.get(tile, tile)} at ({mx}, {my})!"
+                sim["path"].append((ncol, nrow, mp, False))
                 break
 
             if mp + cost > self.max_mp:
                 sim["valid"] = False
                 sim["error"] = f"Out of Movement Points! ({mp + cost:.1f} / {self.max_mp} MP)"
-                sim["path"].append((nx, ny, mp + cost, False))
+                sim["path"].append((ncol, nrow, mp + cost, False))
                 break
 
             # Auto-interact: gold, wood, guards, mages, dwellings, monsters, boss
-            obj = self.get_object_at(nx, ny)
+            obj = self.get_object_at(ncol, nrow)
             if obj and obj["ID"] not in sim["picked_ids"]:
-                if not self._interact_object(obj, sim, nx, ny, mp, cost):
+                if not self._interact_object(obj, sim, mx, my, mp, cost):
                     break
 
             mp += cost
-            cx, cy = nx, ny
-            sim["path"].append((cx, cy, mp, True))
+            cur_col, cur_row = ncol, nrow
+            sim["path"].append((cur_col, cur_row, mp, True))
 
         sim["mp_used"] = mp
 
@@ -1640,17 +1844,22 @@ class HeroesGameEngine:
             pickup_msgs = []
             for pid in sim["picked_ids"]:
                 for obj in self.objects:
-                    if obj["ID"] == pid and not obj["Collected"]:
-                        if obj["Type"] == "Gold":
-                            pickup_msgs.append(f"+{obj['Value']}g")
-                        elif obj["Type"] == "Mine":
-                            pickup_msgs.append(f"+{obj['Value']}w")
-                        elif obj["Type"] == "Dwelling":
-                            pickup_msgs.append(f"+{obj['Value']} Dragons!")
-                        elif obj["Type"] == "Monster":
-                            pickup_msgs.append(f"Defeat {obj['Name']}!")
-                        elif obj["Type"] == "Boss":
-                            pickup_msgs.append(f"SLAY {obj['Name']}!!")
+                    if obj["ID"] == pid:
+                        if obj["Type"] == "Sign":
+                            msg = "Re-read Sign" if obj.get("Read", False) else "Read Sign"
+                            if msg not in pickup_msgs:
+                                pickup_msgs.append(msg)
+                        elif not obj["Collected"]:
+                            if obj["Type"] == "Gold":
+                                pickup_msgs.append(f"+{obj['Value']}g")
+                            elif obj["Type"] == "Mine":
+                                pickup_msgs.append(f"+{obj['Value']}w")
+                            elif obj["Type"] == "Dwelling":
+                                pickup_msgs.append(f"+{obj['Value']} Dragons!")
+                            elif obj["Type"] == "Monster":
+                                pickup_msgs.append(f"Defeat {obj['Name']}!")
+                            elif obj["Type"] == "Boss":
+                                pickup_msgs.append(f"SLAY {obj['Name']}!!")
             pickups_str = f" Pickups: {', '.join(pickup_msgs)}" if pickup_msgs else ""
             self.status_msg = f"Preview OK! ({mp:.1f}/{self.max_mp} MP){pickups_str} -- Click [COMMIT TURN]!"
             self.status_color = (110, 245, 145)
@@ -1673,48 +1882,59 @@ class HeroesGameEngine:
         if self.current_act == "act3":
             self._handle_set_lever()
 
+        # Mark any signs read via code read_sign()
+        for sx, sy in getattr(hero_api, "_read_signs", set()):
+            for obj in self.objects:
+                if obj["X"] == sx and obj["Y"] == sy and obj["Type"] == "Sign":
+                    obj["Read"] = True
+
         for tx, ty, ttype in self.preview_data["terraforms"]:
             self.grid[ty][tx] = ttype
 
         if self.preview_data["path"]:
             fx, fy, _, _ = self.preview_data["path"][-1]
-            self.hero_x, self.hero_y = fx, fy
+            self.hero_col, self.hero_row = fx, fy
 
         boss_slain = False
         for oid in self.preview_data["picked_ids"]:
             for obj in self.objects:
-                if obj["ID"] == oid and not obj["Collected"]:
-                    obj["Collected"] = True
-                    px, py = obj["X"] * TILE_SIZE + 8, obj["Y"] * TILE_SIZE
-                    if obj["Type"] == "Gold":
-                        self.floating_texts.append([f"+{obj['Value']} Gold!", px, py, 65, (255, 225, 55)])
-                    elif obj["Type"] == "Mine":
-                        self.floating_texts.append([f"+{obj['Value']} Wood/day!", px, py, 65, (120, 225, 255)])
-                    elif obj["Type"] in ("Guard", "Mage"):
-                        if self.current_act == "act1":
-                            self.floating_texts.append(["Region 2 Unlocked!", px, py, 80, (140, 255, 150)])
-                            self.quest_stage = 2
-                        else:
-                            self.floating_texts.append(["✦ Gate Opened!", px, py, 60, (140, 255, 150)])
-                    elif obj["Type"] == "Dwelling":
-                        if self.current_act == "act1":
-                            self.floating_texts.append([f"+{obj['Value']} Green Dragons!", px, py, 80, (85, 255, 130)])
-                            if self.quest_stage < 3:
-                                self.quest_stage = 3
-                        else:
-                            self.floating_texts.append(["Barracks Visited!", px, py, 60, (85, 255, 130)])
-                    elif obj["Type"] == "Monster":
-                        self.floating_texts.append([f"{obj['Name']} Defeated!", px, py, 65, (255, 180, 80)])
-                    elif obj["Type"] == "Boss":
-                        self.floating_texts.append(["BOSS DEFEATED!!! VICTORY!!!", px, py, 120, (255, 215, 0)])
-                        boss_slain = True
-                    elif obj["Type"] == "NPC":
-                        self.floating_texts.append([f"+{obj['Value']} Gold from {obj['Name']}!", px, py, 65, (255, 225, 55)])
-                    elif obj["Type"] == "Sign":
-                        # Show sign text in console
+                if obj["ID"] == oid:
+                    px, py = obj.get("col", obj["X"]) * TILE_SIZE + 8, obj.get("row", obj["Y"]) * TILE_SIZE
+                    if obj["Type"] == "Sign":
+                        already_read = obj.get("Read", False)
+                        obj["Read"] = True
+                        obj["Collected"] = False  # Signs NEVER disappear!
                         self.console_add_output(f"📜 Sign: {obj['Description']}", (255, 225, 95))
-                    elif obj["Type"] == "Sphinx":
-                        self.floating_texts.append(["The Sphinx speaks...", px, py, 60, (200, 180, 255)])
+                        msg = "📜 Read Again" if already_read else "📜 Read Sign!"
+                        self.floating_texts.append([msg, px, py, 60, (255, 240, 140)])
+                    elif not obj["Collected"]:
+                        obj["Collected"] = True
+                        if obj["Type"] == "Gold":
+                            self.floating_texts.append([f"+{obj['Value']} Gold!", px, py, 65, (255, 225, 55)])
+                        elif obj["Type"] == "Mine":
+                            self.floating_texts.append([f"+{obj['Value']} Wood/day!", px, py, 65, (120, 225, 255)])
+                        elif obj["Type"] in ("Guard", "Mage"):
+                            if self.current_act == "act1":
+                                self.floating_texts.append(["Region 2 Unlocked!", px, py, 80, (140, 255, 150)])
+                                self.quest_stage = 2
+                            else:
+                                self.floating_texts.append(["✦ Gate Opened!", px, py, 60, (140, 255, 150)])
+                        elif obj["Type"] == "Dwelling":
+                            if self.current_act == "act1":
+                                self.floating_texts.append([f"+{obj['Value']} Green Dragons!", px, py, 80, (85, 255, 130)])
+                                if self.quest_stage < 3:
+                                    self.quest_stage = 3
+                            else:
+                                self.floating_texts.append(["Barracks Visited!", px, py, 60, (85, 255, 130)])
+                        elif obj["Type"] == "Monster":
+                            self.floating_texts.append([f"{obj['Name']} Defeated!", px, py, 65, (255, 180, 80)])
+                        elif obj["Type"] == "Boss":
+                            self.floating_texts.append(["BOSS DEFEATED!!! VICTORY!!!", px, py, 120, (255, 215, 0)])
+                            boss_slain = True
+                        elif obj["Type"] == "NPC":
+                            self.floating_texts.append([f"+{obj['Value']} Gold from {obj['Name']}!", px, py, 65, (255, 225, 55)])
+                        elif obj["Type"] == "Sphinx":
+                            self.floating_texts.append(["The Sphinx speaks...", px, py, 60, (200, 180, 255)])
 
         self.gold = self.preview_data["expected_gold"]
         self.wood = self.preview_data["expected_wood"]
@@ -1850,13 +2070,27 @@ class HeroesGameEngine:
 
                 # Coordinate labels (when grid is toggled on)
                 if self.show_grid:
+                    mx, my = self.grid_to_math(c, r)
                     # Subtle semi-transparent grid line instead of solid black
                     grid_overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                     pygame.draw.rect(grid_overlay, (255, 255, 255, 30), (0, 0, TILE_SIZE, TILE_SIZE), 1)
+
+                    # Axis markings (X-Axis: y=0, Y-Axis: x=0)
+                    if my == 0:  # X-Axis
+                        pygame.draw.line(grid_overlay, (255, 220, 90, 140), (0, TILE_SIZE - 2), (TILE_SIZE, TILE_SIZE - 2), 2)
+                    if mx == 0:  # Y-Axis
+                        pygame.draw.line(grid_overlay, (255, 220, 90, 140), (1, 0), (1, TILE_SIZE), 2)
+
                     self.canvas.blit(grid_overlay, (px, py))
-                    # Coordinate label with dark shadow for readability
-                    lbl_shadow = self.font_coord.render(f"{c},{r}", True, (0, 0, 0))
-                    lbl = self.font_coord.render(f"{c},{r}", True, (240, 245, 235))
+
+                    # Origin marker (0, 0)
+                    if (mx, my) == (0, 0):
+                        pygame.draw.rect(self.canvas, (255, 215, 0), (px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2), 2, border_radius=4)
+                        lbl_shadow = self.font_coord.render("0,0 ★", True, (0, 0, 0))
+                        lbl = self.font_coord.render("0,0 ★", True, (255, 235, 110))
+                    else:
+                        lbl_shadow = self.font_coord.render(f"{mx},{my}", True, (0, 0, 0))
+                        lbl = self.font_coord.render(f"{mx},{my}", True, (240, 245, 235))
                     self.canvas.blit(lbl_shadow, (px + 6, py + 4))
                     self.canvas.blit(lbl, (px + 5, py + 3))
 
@@ -1870,7 +2104,7 @@ class HeroesGameEngine:
         # 3. Draw Map Objects
         for obj in self.objects:
             if not obj["Collected"]:
-                self.art.draw_object(self.canvas, obj, obj["X"] * TILE_SIZE, obj["Y"] * TILE_SIZE, self.tick)
+                self.art.draw_object(self.canvas, obj, obj.get("col", obj["X"]) * TILE_SIZE, obj.get("row", obj["Y"]) * TILE_SIZE, self.tick)
 
         # 4. Draw Preview Path — GREEN line & dots only, NO ghost hero
         if self.preview_data and len(self.preview_data["path"]) > 1:
@@ -1899,7 +2133,7 @@ class HeroesGameEngine:
             pygame.draw.circle(self.canvas, (255, 255, 255), (dest_px, dest_py), 5)
 
         # 5. Draw Active Hero (solid, not ghost)
-        self.art.draw_hero(self.canvas, self.hero_x * TILE_SIZE, self.hero_y * TILE_SIZE, self.tick)
+        self.art.draw_hero(self.canvas, self.hero_col * TILE_SIZE, self.hero_row * TILE_SIZE, self.tick)
 
         # 6. Floating Text Animations
         for ft in self.floating_texts[:]:
@@ -2031,16 +2265,16 @@ class HeroesGameEngine:
             scroll = [
                 ("QUEST 1: THREE WAYS TO MOVE", (255, 220, 85)),
                 ("Goal: Collect 1,500 Gold & bribe the", (240, 235, 220)),
-                ("Border Guard at coordinate (7, 3)!", (240, 235, 220)),
+                ("Border Guard at coordinate (7, 7)!", (240, 235, 220)),
                 ("", (0,0,0)),
                 ("1. DIRECTIONAL STEPS (Relative):", (135, 220, 255)),
-                ("   move_right(3)  or  move_down(1)", (165, 250, 175)),
+                ("   move_right(3)  or  move_up(1)", (165, 250, 175)),
                 ("", (0,0,0)),
                 ("2. RELATIVE VECTOR (From Hero):", (135, 220, 255)),
-                ("   move_by(dx, dy) e.g. move_by(3, 1)", (165, 250, 175)),
+                ("   move_by(dx, dy) e.g. move_by(3, -1)", (165, 250, 175)),
                 ("", (0,0,0)),
                 ("3. ABSOLUTE COORDINATE (Exact Tile):", (135, 220, 255)),
-                ("   move_to(x, y)  e.g. move_to(4, 1)", (165, 250, 175)),
+                ("   move_to(x, y)  e.g. move_to(4, 9)", (165, 250, 175)),
                 ("", (0,0,0)),
                 ("Gold is AUTO-COLLECTED on step!", (255, 230, 95)),
                 ("Just walk to it -- no extra code needed.", (255, 230, 95)),
@@ -2052,7 +2286,7 @@ class HeroesGameEngine:
             scroll = [
                 ("QUEST 2: THE LOOP BRIDGE SPELL", (255, 220, 85)),
                 ("Goal: Bridge the River (X=10) & reach", (240, 235, 220)),
-                ("the Green Dragon Cliff at (14, 1)!", (240, 235, 220)),
+                ("the Green Dragon Cliff at (14, 9)!", (240, 235, 220)),
                 ("", (0,0,0)),
                 ("SPELL: terraform(x, y, 'B')", (205, 165, 255)),
                 ("Turns Water (W) or Lava (L) into a", (215, 215, 215)),
@@ -2063,13 +2297,13 @@ class HeroesGameEngine:
                 ("  for y in range(0, 11):", (165, 250, 175)),
                 ("      terraform(10, y, 'B')", (165, 250, 175)),
                 ("", (0,0,0)),
-                ("Then move_to(14, 1) for dragons!", (255, 190, 125)),
+                ("Then move_to(14, 9) for dragons!", (255, 190, 125)),
                 ("You may need to terraform mountains.", (255, 190, 125)),
             ]
         else:  # quest_stage >= 3
             scroll = [
                 ("QUEST 3: SLAY THE BLACK DRAGON", (255, 220, 85)),
-                ("Goal: March south to (14, 9) and", (240, 235, 220)),
+                ("Goal: March south to (14, 1) and", (240, 235, 220)),
                 ("defeat the Boss with your dragons!", (240, 235, 220)),
                 ("", (0,0,0)),
                 ("ARMY STATUS:", (135, 220, 255)),
@@ -2077,29 +2311,49 @@ class HeroesGameEngine:
                 ("  Boss Requirement: 5 Dragons", (215, 215, 215)),
                 ("", (0,0,0)),
                 ("HOW TO REACH THE BOSS:", (135, 220, 255)),
-                ("1. If needed, bridge Lava row Y=6:", (215, 215, 215)),
+                ("1. If needed, bridge Lava row Y=4:", (215, 215, 215)),
                 ("   for x in range(10, 16):", (165, 250, 175)),
-                ("       terraform(x, 6, 'B')", (165, 250, 175)),
+                ("       terraform(x, 4, 'B')", (165, 250, 175)),
                 ("2. Move straight down column 14:", (215, 215, 215)),
-                ("   move_to(14, 9)", (165, 250, 175)),
+                ("   move_to(14, 1)", (165, 250, 175)),
             ]
 
         for i, (txt, col) in enumerate(scroll):
             self.canvas.blit(self.font_sm.render(txt, True, col), (sx + 36, scroll_y + 18 + i * 26))
 
-        # Tile Inspector — expanded to 4 lines for readability
-        pygame.draw.rect(self.canvas, (42, 47, 64), (sx + 20, 784, SIDEBAR_WIDTH - 40, 140), border_radius=12)
+        # Tile Inspector — expanded with word-wrap for long descriptions
+        inspector_h = 140
+        pygame.draw.rect(self.canvas, (42, 47, 64), (sx + 20, 784, SIDEBAR_WIDTH - 40, inspector_h), border_radius=12)
+        inspector_max_w = SIDEBAR_WIDTH - 80  # Max text width inside the card
         if 0 <= mx < sx and 0 <= my < MAP_ROWS * TILE_SIZE:
             hc, hr = mx // TILE_SIZE, my // TILE_SIZE
             if 0 <= hc < MAP_COLS and 0 <= hr < MAP_ROWS:
-                dx, dy = hc - self.hero_x, hr - self.hero_y
+                tx, ty = self.grid_to_math(hc, hr)
+                dx, dy = tx - self.hero_x, ty - self.hero_y
                 tcode = self.grid[hr][hc]
                 obj = self.get_object_at(hc, hr)
-                self.canvas.blit(self.font_md.render(f"Tile ({hc}, {hr}) -- {TERRAIN_NAMES.get(tcode, tcode)}", True, (225, 240, 255)), (sx + 32, 792))
-                self.canvas.blit(self.font_sm.render(f"Absolute: move_to({hc}, {hr})", True, (150, 250, 175)), (sx + 32, 822))
-                self.canvas.blit(self.font_sm.render(f"Relative: move_by({dx}, {dy})", True, (150, 250, 175)), (sx + 32, 846))
+                # Tile name (with wrapping)
+                origin_suffix = " ★ [ORIGIN]" if (tx, ty) == (0, 0) else ""
+                tile_text = f"Tile ({tx}, {ty}){origin_suffix} -- {TERRAIN_NAMES.get(tcode, tcode)}"
+                tile_lines = self._wrap_text(tile_text, self.font_md, inspector_max_w)
+                cur_y = 792
+                for tl in tile_lines:
+                    self.canvas.blit(self.font_md.render(tl, True, (225, 240, 255)), (sx + 32, cur_y))
+                    cur_y += 24
+                self.canvas.blit(self.font_sm.render(f"Absolute: move_to({tx}, {ty})", True, (150, 250, 175)), (sx + 32, cur_y))
+                cur_y += 22
+                self.canvas.blit(self.font_sm.render(f"Relative: move_by({dx}, {dy})", True, (150, 250, 175)), (sx + 32, cur_y))
+                cur_y += 24
                 if obj:
-                    self.canvas.blit(self.font_sm.render(f"* {obj['Name']}: {obj['Description']}", True, (255, 225, 95)), (sx + 32, 870))
+                    is_read = obj["Type"] == "Sign" and obj.get("Read", False)
+                    prefix = "✓ [READ] " if is_read else "* "
+                    color = (130, 245, 150) if is_read else (255, 225, 95)
+                    obj_text = f"{prefix}{obj['Name']}: {obj['Description']}"
+                    obj_lines = self._wrap_text(obj_text, self.font_sm, inspector_max_w)
+                    for ol in obj_lines:
+                        if cur_y < 784 + inspector_h - 6:  # Don't overflow the box
+                            self.canvas.blit(self.font_sm.render(ol, True, color), (sx + 32, cur_y))
+                            cur_y += 22
             else:
                 self.canvas.blit(self.font_md.render("Hover mouse over any tile on the map!", True, (180, 195, 215)), (sx + 32, 825))
         else:
@@ -2116,7 +2370,14 @@ class HeroesGameEngine:
 
         # ── Status message bar (top strip) ──
         pygame.draw.rect(self.canvas, (30, 34, 46), (0, by + 2, console_w, 30))
-        self.canvas.blit(self.font_sm.render(self.status_msg, True, self.status_color), (12, by + 7))
+        # Word-wrap status message if it's too long
+        status_max_w = console_w - 24
+        if self.font_sm.size(self.status_msg)[0] > status_max_w:
+            status_lines = self._wrap_text(self.status_msg, self.font_sm, status_max_w)
+            # Show just the first line that fits in the status bar
+            self.canvas.blit(self.font_sm.render(status_lines[0], True, self.status_color), (12, by + 7))
+        else:
+            self.canvas.blit(self.font_sm.render(self.status_msg, True, self.status_color), (12, by + 7))
 
         # ── Console output log (scrollable area) ──
         log_y = by + 34
@@ -2127,10 +2388,18 @@ class HeroesGameEngine:
         line_h = 22
         max_visible = log_h // line_h
         visible_lines = self.console_output[-max_visible:] if self.console_output else []
-        for i, (text, color) in enumerate(visible_lines):
-            # Truncate long lines to fit
-            display_text = text[:85] if len(text) > 85 else text
-            self.canvas.blit(self.font_console.render(display_text, True, color), (14, log_y + 4 + i * line_h))
+        line_idx = 0
+        for text, color in visible_lines:
+            if line_idx >= max_visible:
+                break
+            # Word-wrap long console lines instead of truncating
+            console_max_w = console_w - 28
+            wrapped = self._wrap_text(text, self.font_console, console_max_w)
+            for wl in wrapped:
+                if line_idx >= max_visible:
+                    break
+                self.canvas.blit(self.font_console.render(wl, True, color), (14, log_y + 4 + line_idx * line_h))
+                line_idx += 1
 
         # ── Console input line (bottom) ──
         input_y = by + 34 + log_h + 6

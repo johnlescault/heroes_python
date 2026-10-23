@@ -78,19 +78,19 @@ def move_left(steps=1):
 
 
 def move_down(steps=1):
-    """Move down by 'steps' tiles."""
+    """Move down by 'steps' tiles (negative Y)."""
     _need("move_down")
-    W.walk_rel(0, _int(steps, "steps"))
-
-
-def move_up(steps=1):
-    """Move up by 'steps' tiles."""
-    _need("move_up")
     W.walk_rel(0, -_int(steps, "steps"))
 
 
+def move_up(steps=1):
+    """Move up by 'steps' tiles (positive Y)."""
+    _need("move_up")
+    W.walk_rel(0, _int(steps, "steps"))
+
+
 def move_by(dx, dy):
-    """Move from where you stand by (dx, dy): first left/right, then up/down."""
+    """Move from where you stand by (dx, dy): positive dx is right, positive dy is up."""
     _need("move_by")
     W.walk_rel(_int(dx, "dx"), _int(dy, "dy"))
 
