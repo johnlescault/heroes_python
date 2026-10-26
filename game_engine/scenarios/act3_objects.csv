@@ -4,21 +4,21 @@ ID,Type,Name,X,Y,Value,Collected,Description
 3,Gold,Oasis Treasure,3,4,400,0,Gold revealed on oasis days
 4,NPC,Desert Trader,4,2,200,0,Trades secrets for safe passage
 5,Guard,Weather Gate,5,2,0,0,Pass only if you used if/else with today()
-6,Sign,Scout Sign,7,2,0,0,Use look(x y) to check tiles before moving!
+6,Sign,Scout Sign,7,2,0,0,Use look(x, y) to check tiles before moving!
 7,Gold,Hidden Stash,8,3,500,0,Gold hidden in the dunes
 8,NPC,Wandering Monster,9,2,0,0,A scorpion that moves each day!
 9,Guard,Scout Gate,11,2,0,0,Pass only if you used look() with if
-10,Sign,Shrine Scroll,7,-2,0,0,Set levers to make the rule TRUE!
+10,Sign,Shrine Scroll,7,-2,0,0,Set levers with set_lever('red', True) to make the rule TRUE!
 11,NPC,Shrine Keeper,8,-2,300,0,Rewards you for solving the shrine
 12,Shrine,Logic Shrine,9,-2,0,0,red and blue
 13,Shrine,Hard Shrine,10,-2,0,0,red and (blue or not green)
-14,Guard,Shrine Gate,11,-2,0,0,Solve a shrine to pass!
+14,Guard,Shrine Gate,11,-2,0,0,Solve a shrine with set_lever() to pass!
 15,Sign,Gate Scroll,12,1,0,0,Use and/or/not in an if statement!
 16,Gold,Gate Gold,13,2,600,0,Gold beyond the compound gate
-17,NPC,Key Merchant,12,2,0,0,Sells the blue key for passage
-18,Guard,Compound Gate,14,1,0,0,Use and/or/not in an if to pass!
-19,Sign,Arena Sign,14,0,0,0,Battle the Troglodytes! Write if/else strategy
+17,NPC,Key Merchant,12,2,0,0,Gives you the blue key for passage!
+18,Guard,Compound Gate,14,1,0,0,Use and/or/not in an if statement to pass!
+19,Sign,Arena Sign,14,0,0,0,Step on Arena Master (15, 0) to fight the Troglodytes!
 20,Gold,Arena Prize,14,-1,800,0,Gold reward for winning the arena battle
-21,NPC,Arena Master,15,0,0,0,Welcome to the Arena! Fight to proceed
+21,NPC,Arena Master,15,0,0,0,Welcome to the Arena! Step here & Commit to start Battle!
 22,Guard,Arena Gate,14,-2,0,0,Win the battle tutorial to pass!
-23,Boss,Sand Wyrm,15,-3,0,0,The terrible Sand Wyrm! Master of decisions!
+23,Boss,Sand Wyrm,15,-3,0,0,The terrible Sand Wyrm! Complete all 5 Act III quests to slay!

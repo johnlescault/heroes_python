@@ -1,7 +1,7 @@
 {
   "id": "act3",
   "title": "The Shifting Sands",
-  "subtitle": "Learn to make decisions with if/else",
+  "subtitle": "If/Else Decisions, Boolean Logic & Arena Combat",
   "map_file": "game_engine/scenarios/act3_map.csv",
   "objects_file": "game_engine/scenarios/act3_objects.csv",
   "origin": [0, 5],

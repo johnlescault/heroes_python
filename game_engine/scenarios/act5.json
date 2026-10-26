@@ -1,0 +1,14 @@
+{
+  "id": "act5",
+  "title": "The Spellbook",
+  "subtitle": "Custom Functions (def), Return Values & Memory",
+  "map_file": "game_engine/scenarios/act5_map.csv",
+  "objects_file": "game_engine/scenarios/act5_objects.csv",
+  "origin": [0, 10],
+  "hero_start": [1, 9],
+  "max_mp": 16.0,
+  "starting_gold": 500,
+  "starting_wood": 0,
+  "starting_dragons": 0,
+  "next_scenario": "act6"
+}

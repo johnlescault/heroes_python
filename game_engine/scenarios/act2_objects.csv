@@ -2,25 +2,25 @@ ID,Type,Name,X,Y,Value,Guard_Power,Description
 1,Gold,Welcome Chest,-5,5,200,0,Welcome to Act II! 200 Gold to start your journey.
 2,Sign,Cursed Scroll,-6,4,0,0,move_to(-8 0) and move_to(7 -5) -- CURSED SPELLS! Silence them with #
 3,Gold,Seer Reward,-5,3,150,0,The Seer rewards your silence: 150 Gold
-4,Guard,Comment Gate,-4,2,0,0,Show me you can silence curses! Type lines starting with # then move here.
+4,Guard,Comment Gate,-4,2,0,0,Show me you can silence curses! Type 2+ lines starting with # then move here.
 5,Sign,Tavern Wall,0,4,0,0,The password is: For Erathia!
-6,Guard,Password Gate,3,4,0,0,SHOUT the password with say() to open this gate!
+6,Guard,Password Gate,3,4,0,0,SHOUT the password with say('For Erathia!') to open this gate!
 7,Gold,Tavern Reward,3,3,300,0,The Tavern keeper thanks you: 300 Gold
-8,Sign,Scout Hint,0,3,0,0,The Merchant wanders! Use x y = scout(Merchant) to find him.
+8,Sign,Scout Hint,0,3,0,0,The Merchant wanders! Use x, y = scout('Merchant') to find him.
 9,NPC,Wandering Merchant,2,3,500,0,A travelling merchant with 500 gold in rare goods!
-10,Guard,Variable Gate,6,2,0,0,Store the merchants location in a variable to pass!
-11,Sign,Sphinx Riddle 1,7,1,0,0,Give me a number with a DECIMAL POINT in it.
-12,Sign,Sphinx Riddle 2,6,0,0,0,Give me a piece of TEXT -- a word in quotes.
-13,Sign,Sphinx Riddle 3,5,0,0,0,Give me something TRUE or FALSE.
-14,Sphinx,The Stone Sphinx,6,1,0,0,Answer my 3 riddles with the correct TYPES to pass!
-15,Sign,Price Board,5,-1,0,0,PIKEMAN costs 60 gold. ARCHER costs 100 gold.
-16,Dwelling,Barracks,6,-1,0,0,Recruit soldiers here! Use recruit(Pikeman and a count)
-17,Guard,Operators Gate,-5,-1,0,0,How many Pikemen can you buy with your gold? Use // to find out!
+10,Guard,Variable Gate,6,2,0,0,Store the merchant's location with x, y = scout('Merchant') to pass!
+11,Sign,Sphinx Riddle 1,7,1,0,0,Riddle 1: Give me a number with a DECIMAL POINT in it (float).
+12,Sign,Sphinx Riddle 2,6,0,0,0,Riddle 2: Give me a piece of TEXT -- a word in quotes (str).
+13,Sign,Sphinx Riddle 3,5,0,0,0,Riddle 3: Give me something TRUE or FALSE (bool).
+14,Sphinx,The Stone Sphinx,6,1,0,0,Use answer_sphinx(3.5), answer_sphinx('hi'), answer_sphinx(True)!
+15,Sign,Price Board,5,-1,0,0,Define a CONSTANT like COST = 60 at the top! PIKEMAN costs 60 gold.
+16,Dwelling,Barracks,6,-1,0,0,Define an UPPERCASE constant (COST = 60) and visit/recruit here!
+17,Guard,Operators Gate,-5,-1,0,0,How many Pikemen can you buy? Use // or % (e.g. print(gold // 60)) to pass!
 18,Sign,Trade Hint,-3,-2,0,0,Math time! gold // 60 = how many. gold % 60 = leftover change.
 19,Gold,Marketplace Prize,-4,-2,400,0,You earned 400 Gold for mastering the marketplace math!
 20,Sign,Ancient Sign 1,0,-3,0,0,1500
 21,Sign,Ancient Sign 2,2,-3,0,0,2.5
-22,Guard,Casting Gate,4,-3,0,0,The toll is written on the ancient signs -- but as TEXT! Use int() to convert.
+22,Guard,Casting Gate,4,-3,0,0,The toll is text on the signs! Use int(read_sign(0, -3)) to convert!
 23,Sign,Keymaster Scroll,5,-2,0,0,NOGARD
-24,Guard,String Gate,4,-1,0,0,Reverse the scrolls word to find the true name! Use open_gate()
-25,Boss,Tax Collector,-1,-5,0,50,The Tax Collector demands proof of ALL your Python skills!
+24,Guard,String Gate,4,-1,0,0,Reverse 'NOGARD' ('NOGARD'[::-1]) and call open_gate('DRAGON')!
+25,Boss,Tax Collector,-1,-5,0,50,The Tax Collector demands proof of your Act II Python skills!

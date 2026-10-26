@@ -1,0 +1,14 @@
+{
+  "id": "act7",
+  "title": "The Grail",
+  "subtitle": "Bits, Bytes, Binary, Hexadecimal & Bitwise Magic",
+  "map_file": "game_engine/scenarios/act7_map.csv",
+  "objects_file": "game_engine/scenarios/act7_objects.csv",
+  "origin": [0, 10],
+  "hero_start": [1, 9],
+  "max_mp": 18.0,
+  "starting_gold": 1000,
+  "starting_wood": 0,
+  "starting_dragons": 5,
+  "next_scenario": "act1"
+}

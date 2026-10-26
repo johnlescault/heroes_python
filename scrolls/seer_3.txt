@@ -1,0 +1,6 @@
+4,9,Gold Pile
+2,5,Treasure Chest
+7,7,Border Guard
+12,8,Dragon Hoard
+14,9,Green Dragon Cliff
+14,1,Black Dragon Boss

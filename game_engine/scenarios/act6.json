@@ -1,0 +1,14 @@
+{
+  "id": "act6",
+  "title": "The Underground",
+  "subtitle": "Recursion, Base Cases, Hanoi & Hydra Math",
+  "map_file": "game_engine/scenarios/act6_map.csv",
+  "objects_file": "game_engine/scenarios/act6_objects.csv",
+  "origin": [0, 10],
+  "hero_start": [1, 9],
+  "max_mp": 16.0,
+  "starting_gold": 500,
+  "starting_wood": 0,
+  "starting_dragons": 0,
+  "next_scenario": "act7"
+}

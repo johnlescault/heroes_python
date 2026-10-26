@@ -1,0 +1,15 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Description
+1,Sign,Formation Sign,2,9,0,0,Put Archers in front of your list! Call set_formation(['Archer', 'Pikeman'])
+2,Dwelling,Royal Barracks,4,9,0,0,Recruit Archers and Pikemen! Try set_formation(['Archer', 'Pikeman'])
+3,Guard,Formation Gate,5,9,0,0,Call set_formation(['Archer', 'Pikeman']) to order your army list!
+4,Sign,Cartographer Sign,7,9,0,0,Use world = get_map() and a nested for-loop to scan the 2D map!
+5,Gold,Surveyor Chest,8,8,500,0,500 Gold for the Royal Cartographer!
+6,Guard,Grid Gate,2,4,0,0,Use get_map() in your code to scan the 2D grid!
+7,Sign,Waypoints Sign,3,2,0,0,Loop over a list of tuples: for x, y in [(4,2), (6,2)]: move_to(x, y)
+8,Gold,Waypoint Gold 1,4,2,300,0,Waypoint 1 Treasure!
+9,Gold,Waypoint Gold 2,6,2,300,0,Waypoint 2 Treasure!
+10,Sign,Excavation Sign,8,3,0,0,Stand on (8, 3) and use a while-loop: while not dig(): pass
+11,Guard,River Gate,10,6,0,0,Unearth the buried artifact with dig() in a while-loop first!
+12,NPC,General Morgan,12,6,400,0,Step here & Commit to fight the Multi-Stack Tactical Battle!
+13,Guard,Warlord Gate,14,4,0,0,Win the Multi-Stack Battle (shoot() & attack()) to pass!
+14,Boss,Troglodyte King,14,1,0,0,The Troglodyte King! Master all 5 Act IV quests to conquer!

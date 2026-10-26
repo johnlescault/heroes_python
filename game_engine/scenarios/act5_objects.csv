@@ -1,0 +1,11 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Description
+1,Sign,Spellwright Sign,2,9,0,0,Write def bridge(x): terraform(x, 9, 'B') and call it for x=3, 7, 11!
+2,Guard,Function Gate,13,9,0,0,Define a function with 'def ' to bridge the 3 rivers (X=3, 7, 11)!
+3,Gold,Archmage Chest,14,8,600,0,600 Gold for writing your first custom function!
+4,Sign,Trial Tower Sign,12,5,0,0,Write def add_gold(a, b): return a + b  then call test_spell(add_gold)!
+5,Mage,Spell Trial Master,9,5,0,0,Use return in a function and call test_spell(your_fn) to pass!
+6,Guard,Return Gate,5,4,0,0,Pass the Spell Trial with return and test_spell()!
+7,Sign,Memory Sign,2,3,0,0,Variables reset each day! Save secret: memory['code'] = 42
+8,NPC,Dimension Keeper,5,2,500,0,Checks that you stored a value in memory['code']!
+9,Guard,Scope Gate,10,2,0,0,Store a value in the persistent memory dict (e.g. memory['code'] = 42)!
+10,Boss,Necromancer Lord,13,1,0,0,The Necromancer Lord! Complete all Act V quests to triumph!

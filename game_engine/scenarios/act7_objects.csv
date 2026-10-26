@@ -1,0 +1,11 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Description
+1,Sign,Binary Sign,3,9,0,0,8 Obelisks = 1 Byte! Light 10101101 (173) with set_obelisks('10101101')!
+2,Shrine,Obelisk Altar,6,9,0,0,Call set_obelisks('10101101') and open_vault(int('10101101', 2))!
+3,Guard,Binary Gate,10,9,0,0,Set the 8-bit obelisks to '10101101' and open_vault(173)!
+4,Sign,Hex Sign,12,6,0,0,Crystal banners use Hex (#RRGGBB)! 255=FF, 136=88, 0=00 -> dye_banner('#FF8800')
+5,Shrine,Crystal Banner,10,6,0,0,Call dye_banner('#FF8800') to dye the banner in hexadecimal!
+6,Guard,Hex Gate,8,4,0,0,Dye the banner with dye_banner('#FF8800') to pass!
+7,Sign,Bitwise Sign,4,4,0,0,Schools of Magic: AIR=1, EARTH=2, FIRE=4, WATER=8. Combine FIRE | AIR (5) & XOR (^)
+8,Sphinx,Bitwise Guardian,6,4,0,0,Use bitwise operators (& | ^ <<) in your code (e.g. print(173 ^ 163))!
+9,Guard,Bitwise Gate,8,1,0,0,Use a bitwise operator (&, |, ^, <<, >>) in your spell code to pass!
+10,Boss,Titan of the Grail,13,1,0,0,The Titan of the Grail! Master Binary, Hex & Bitwise Magic to win the Campaign!

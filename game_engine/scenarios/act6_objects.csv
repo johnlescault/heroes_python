@@ -1,0 +1,10 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Description
+1,Sign,Torch Sign,2,9,0,0,Write a recursive function or call light_torch(x, y) on 3+ tiles!
+2,Guard,Labyrinth Gate,6,7,0,0,Light at least 3 cavern torches with light_torch(x, y)!
+3,Sign,Hanoi Sign,8,7,0,0,Move 3 rings from 'A' to 'C'! Call move_ring(src, dst) or write def hanoi(n,a,c,b)!
+4,Shrine,Ring Obelisks,9,7,0,0,Move all 3 rings from A to C using move_ring('A', 'C')!
+5,Guard,Obelisk Gate,10,7,0,0,Solve the 3-ring Towers of Hanoi puzzle (7 moves) to pass!
+6,Sign,Hydra Sign,13,5,0,0,A size-3 Hydra grows 2 smaller heads per cut! Total strikes = 1 + 2*strikes(n-1).
+7,Sphinx,Hydra Oracle,7,5,0,0,How many strikes to slay a size-3 Hydra? (size 0 = 1). Call answer_hydra(15)!
+8,Guard,Hydra Gate,10,1,0,0,Answer the Hydra Oracle with answer_hydra(15) (and use recursion)!
+9,Boss,Dungeon Overlord,2,1,0,0,The Dungeon Overlord! Master recursion to claim victory!

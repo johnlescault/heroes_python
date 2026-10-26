@@ -1,7 +1,7 @@
 {
   "id": "act2",
   "title": "The Hero's Journal",
-  "subtitle": "Learn the deeper arts of Python",
+  "subtitle": "Variables, Types, Math & Strings",
   "map_file": "game_engine/scenarios/act2_map.csv",
   "objects_file": "game_engine/scenarios/act2_objects.csv",
   "origin": [8, 5],

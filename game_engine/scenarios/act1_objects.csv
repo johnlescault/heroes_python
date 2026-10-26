@@ -1,0 +1,10 @@
+ID,Type,Name,X,Y,Value,Guard_Power,Collected,Description
+1,Gold,Gold Pile,4,9,500,0,0,A glittering pile of 500 Gold coins!
+2,Gold,Treasure Chest,2,5,1000,0,0,An ancient chest holding 1000 Gold + Boots of Speed (+4 MP)!
+3,Mine,Sawmill,6,9,2,0,0,Produces +2 Wood every day once flagged!
+4,Guard,Border Guard,7,7,1500,0,0,Demands 1500 Gold to unlock the Eastern Valley!
+5,Mage,Archmage Hut,9,8,0,0,0,The Archmage teaches the Bridge Loop Spell: terraform(x, y, 'B')
+6,Gold,Dragon Hoard,12,8,2500,0,0,A massive hoard of 2500 Gold + Tome of Fire!
+7,Monster,Troglodytes,12,5,30,30,0,Fierce Troglodytes! Need at least 1 Dragon to defeat.
+8,Dwelling,Green Dragon Cliff,14,9,5,0,0,Terraform this peak to Grass ('G') to recruit 5 Green Dragons!
+9,Boss,Black Dragon,14,1,5,100,0,The terrifying Black Dragon Boss! Requires 5 Dragons to slay!

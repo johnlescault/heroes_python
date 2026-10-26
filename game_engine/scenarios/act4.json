@@ -1,0 +1,14 @@
+{
+  "id": "act4",
+  "title": "Raising an Army",
+  "subtitle": "Lists, 2D Grids, Loops & Multi-Stack Battles",
+  "map_file": "game_engine/scenarios/act4_map.csv",
+  "objects_file": "game_engine/scenarios/act4_objects.csv",
+  "origin": [0, 10],
+  "hero_start": [1, 9],
+  "max_mp": 16.0,
+  "starting_gold": 600,
+  "starting_wood": 0,
+  "starting_dragons": 0,
+  "next_scenario": "act5"
+}
